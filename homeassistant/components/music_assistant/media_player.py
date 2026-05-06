@@ -433,6 +433,7 @@ class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
         enqueue: MediaPlayerEnqueue | QueueOption | None = None,
         radio_mode: bool | None = None,
         media_type: str | None = None,
+        username: str | None = None,  # the MA username
     ) -> None:
         """Send the play_media command to the media player."""
         media_uris: list[str] = []
@@ -485,6 +486,7 @@ class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
             media=media_uris,
             option=self._convert_queueoption_to_media_player_enqueue(enqueue),
             radio_mode=radio_mode or False,
+            username=username,
         )
 
     @catch_musicassistant_error

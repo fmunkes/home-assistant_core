@@ -49,6 +49,10 @@ play_media:
       advanced: true
       selector:
         boolean:
+    username:
+      example: "Jon"
+      selector:
+        text:
 
 play_announcement:
   target:
