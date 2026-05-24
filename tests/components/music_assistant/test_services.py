@@ -9,17 +9,24 @@ from syrupy.assertion import SnapshotAssertion
 from homeassistant.components.music_assistant.const import (
     ATTR_FAVORITE,
     ATTR_MEDIA_TYPE,
+    ATTR_PROVIDER_INSTANCE_IDS,
     ATTR_SEARCH_NAME,
     DOMAIN,
 )
 from homeassistant.components.music_assistant.services import (
     SERVICE_GET_LIBRARY,
     SERVICE_SEARCH,
+    SERVICE_SYNC_MUSIC_PROVIDER,
 )
 from homeassistant.const import ATTR_CONFIG_ENTRY_ID
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 
-from .common import create_library_albums_from_fixture, setup_integration_from_fixtures
+from .common import (
+    create_library_albums_from_fixture,
+    create_providers_from_fixture,
+    setup_integration_from_fixtures,
+)
 
 
 async def test_search_action(
@@ -80,3 +87,52 @@ async def test_get_library_action(
         return_response=True,
     )
     assert response == snapshot
+
+
+async def test_sync_music_provider_action(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Test music assistant search action."""
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+
+    music_assistant_client.providers = create_providers_from_fixture()
+
+    # verify a general sync request passes
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SYNC_MUSIC_PROVIDER,
+        {
+            ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+        },
+        blocking=True,
+    )
+
+    # verify an explicit sync request passes
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SYNC_MUSIC_PROVIDER,
+        {
+            ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+            ATTR_MEDIA_TYPE: "audiobook",
+            ATTR_PROVIDER_INSTANCE_IDS: ["audiobookshelf--jcbaRZBw"],
+        },
+        blocking=True,
+    )
+
+    # verify a faulty request fails
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_SYNC_MUSIC_PROVIDER,
+            {
+                ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+                ATTR_MEDIA_TYPE: "audiobook",
+                ATTR_PROVIDER_INSTANCE_IDS: [
+                    "non-existent_instance_id",
+                    "audiobookshelf--jcbaRZBw",
+                ],
+            },
+            blocking=True,
+        )

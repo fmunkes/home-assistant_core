@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from music_assistant_models.enums import MediaType, QueueOption
+from music_assistant_models.enums import MediaType, ProviderType, QueueOption
 import voluptuous as vol
 
 from homeassistant.components.media_player import (
@@ -41,6 +41,7 @@ from .const import (
     ATTR_PLAYLISTS,
     ATTR_PODCASTS,
     ATTR_PRE_ANNOUNCE_URL,
+    ATTR_PROVIDER_INSTANCE_IDS,
     ATTR_RADIO,
     ATTR_RADIO_MODE,
     ATTR_SEARCH,
@@ -77,6 +78,7 @@ SERVICE_PLAY_MEDIA_ADVANCED = "play_media"
 SERVICE_PLAY_ANNOUNCEMENT = "play_announcement"
 SERVICE_TRANSFER_QUEUE = "transfer_queue"
 SERVICE_GET_QUEUE = "get_queue"
+SERVICE_SYNC_MUSIC_PROVIDER = "sync_music_provider"
 
 DEFAULT_OFFSET = 0
 DEFAULT_LIMIT = 25
@@ -123,6 +125,23 @@ def register_actions(hass: HomeAssistant) -> None:
             }
         ),
         supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SYNC_MUSIC_PROVIDER,
+        handle_sync_music_provider,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_CONFIG_ENTRY_ID): str,
+                vol.Optional(ATTR_PROVIDER_INSTANCE_IDS): vol.All(
+                    cv.ensure_list, [cv.string]
+                ),
+                vol.Optional(ATTR_MEDIA_TYPE): vol.All(
+                    cv.ensure_list, [vol.Coerce(MediaType)]
+                ),
+            }
+        ),
+        supports_response=SupportsResponse.NONE,
     )
 
     # Platform entity services
@@ -297,3 +316,25 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
         }
     )
     return response
+
+
+async def handle_sync_music_provider(call: ServiceCall) -> None:
+    """Handle sync music_provider action."""
+    mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    music_provider_instance_ids = call.data.get(ATTR_PROVIDER_INSTANCE_IDS)
+    if music_provider_instance_ids is not None:
+        # verify, that given instance ids exist
+        available_music_provider_instance_ids = [
+            provider.instance_id
+            for provider in mass.providers
+            if provider.type == ProviderType.MUSIC
+        ]
+        for instance_id in music_provider_instance_ids:
+            if instance_id not in available_music_provider_instance_ids:
+                raise ServiceValidationError(
+                    f"The music provider instance id {instance_id} does not exist."
+                )
+    await mass.music.start_sync(
+        media_types=call.data.get(ATTR_MEDIA_TYPE, MediaType.ALL),
+        providers=music_provider_instance_ids,
+    )

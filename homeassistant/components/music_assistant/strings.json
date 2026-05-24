@@ -462,6 +462,24 @@
         }
       }
     },
+    "sync_music_provider": {
+      "description": "Sync a music provider.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Select the Music Assistant instance.",
+          "name": "Music Assistant instance"
+        },
+        "media_type": {
+          "description": "The media type for which to request details for.",
+          "name": "Media type"
+        },
+        "provider_instance_ids": {
+          "description": "The music provider instance ids. If not specified, all providers are synced.",
+          "name": "Provider instance ids"
+        }
+      },
+      "name": "Music provider synchronization"
+    },
     "transfer_queue": {
       "description": "Transfers a player's queue to another player.",
       "fields": {

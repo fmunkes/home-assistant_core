@@ -242,3 +242,28 @@ get_library:
       default: false
       selector:
         boolean:
+
+sync_music_provider:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: music_assistant
+    media_type:
+      example: "playlist"
+      selector:
+        select:
+          translation_key: media_type
+          options:
+            - artist
+            - album
+            - audiobook
+            - playlist
+            - podcast
+            - track
+            - radio
+    provider_instance_ids:
+      example: "filesystem_smb--pJJ2CPYx"
+      selector:
+        object:

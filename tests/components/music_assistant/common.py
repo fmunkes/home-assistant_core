@@ -17,6 +17,7 @@ from music_assistant_models.media_items import (
 )
 from music_assistant_models.player import Player
 from music_assistant_models.player_queue import PlayerQueue
+from music_assistant_models.provider import ProviderInstance
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.const import Platform
@@ -152,6 +153,12 @@ def create_library_podcasts_from_fixture() -> list[Podcast]:
     """Create MA Podcasts from fixture."""
     fixture_data = load_and_parse_fixture("library_podcasts")
     return [Podcast.from_dict(radio_data) for radio_data in fixture_data]
+
+
+def create_providers_from_fixture() -> list[ProviderInstance]:
+    """Create MA providers from fixture."""
+    fixture_data = load_and_parse_fixture("providers")
+    return [ProviderInstance.from_dict(provider_data) for provider_data in fixture_data]
 
 
 async def trigger_subscription_callback(

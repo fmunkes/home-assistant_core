@@ -12,6 +12,7 @@
     "play_announcement": { "service": "mdi:bullhorn" },
     "play_media": { "service": "mdi:play" },
     "search": { "service": "mdi:magnify" },
+    "sync_music_provider": { "service": "mdi:sync" },
     "transfer_queue": { "service": "mdi:transfer" }
   }
 }
