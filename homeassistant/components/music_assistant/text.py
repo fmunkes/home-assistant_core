@@ -61,7 +61,7 @@ async def async_setup_entry(
         async_add_entities(entities)
 
     # register callback to add players when they are discovered
-    entry.runtime_data.platform_handlers.setdefault(Platform.TEXT, add_player)
+    entry.runtime_data.platform_handlers_player.setdefault(Platform.TEXT, add_player)
 
 
 class MusicAssistantPlayerConfigText(MusicAssistantPlayerOptionEntity, TextEntity):

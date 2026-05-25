@@ -59,7 +59,7 @@ from .const import (
     ATTR_SHUFFLE_ENABLED,
     DOMAIN,
 )
-from .entity import MusicAssistantEntity
+from .entity import MusicAssistantPlayerEntity
 from .helpers import catch_musicassistant_error
 from .media_browser import async_browse_media, async_search_media
 from .schemas import QUEUE_DETAILS_SCHEMA, queue_item_dict_from_mass_item
@@ -120,10 +120,12 @@ async def async_setup_entry(
         async_add_entities([MusicAssistantPlayer(mass, player_id)])
 
     # register callback to add players when they are discovered
-    entry.runtime_data.platform_handlers.setdefault(Platform.MEDIA_PLAYER, add_player)
+    entry.runtime_data.platform_handlers_player.setdefault(
+        Platform.MEDIA_PLAYER, add_player
+    )
 
 
-class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
+class MusicAssistantPlayer(MusicAssistantPlayerEntity, MediaPlayerEntity):
     """Representation of MediaPlayerEntity from Music Assistant Player."""
 
     _attr_name = None

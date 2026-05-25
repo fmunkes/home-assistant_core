@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from music_assistant_models.enums import EventType
 from music_assistant_models.event import MassEvent
 from music_assistant_models.player import Player, PlayerOption
+from music_assistant_models.provider import ProviderInstance
 
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -16,7 +17,58 @@ if TYPE_CHECKING:
     from music_assistant_client import MusicAssistantClient
 
 
-class MusicAssistantEntity(Entity):
+class MusicAssistantConfigEntity(Entity):
+    """Base entity for Music Assistant Config Options."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, mass: MusicAssistantClient) -> None:
+        """Initialize MediaPlayer entity."""
+        self.mass = mass
+
+
+class MusicAssistantProviderConfigEntity(MusicAssistantConfigEntity):
+    """Base entity for provider-specific settings."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+
+    def __init__(self, mass: MusicAssistantClient, provider: ProviderInstance) -> None:
+        """Initialize MusicAssistantProviderConfigEntity."""
+        super().__init__(mass)
+
+        self.provider = provider
+
+    @property
+    def unique_id(self) -> str | None:
+        """Return unique id for entity."""
+        _base = self.provider.instance_id
+        if hasattr(self, "entity_description"):
+            return f"{_base}_{self.entity_description.key}"
+        return _base
+
+    @property
+    def available(self) -> bool:
+        """Return availability of entity."""
+        return self.provider.available and bool(self.mass.connection.connected)
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks."""
+        await self.async_on_update()
+        self.async_on_remove(
+            self.mass.subscribe(self.__on_mass_update, EventType.PROVIDERS_UPDATED)
+        )
+
+    async def __on_mass_update(self, event: MassEvent) -> None:
+        """Call when we receive an event from MusicAssistant."""
+        await self.async_on_update()
+        self.async_write_ha_state()
+
+    async def async_on_update(self) -> None:
+        """Handle updates."""
+
+
+class MusicAssistantPlayerEntity(Entity):
     """Base Entity from Music Assistant Player."""
 
     _attr_has_entity_name = True
@@ -85,7 +137,7 @@ class MusicAssistantEntity(Entity):
         """Handle player updates."""
 
 
-class MusicAssistantPlayerOptionEntity(MusicAssistantEntity):
+class MusicAssistantPlayerOptionEntity(MusicAssistantPlayerEntity):
     """Base entity for Music Assistant Player Options."""
 
     _attr_entity_category = EntityCategory.CONFIG

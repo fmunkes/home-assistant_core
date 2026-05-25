@@ -52,6 +52,9 @@
     "button": {
       "favorite_now_playing": {
         "name": "Favorite current song"
+      },
+      "sync_music_provider": {
+        "name": "Sync {provider_name} music source"
       }
     },
     "media_player": {

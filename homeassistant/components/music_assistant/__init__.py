@@ -21,6 +21,7 @@ from music_assistant_models.errors import (
     MusicAssistantError,
 )
 from music_assistant_models.player import Player
+from music_assistant_models.provider import ProviderInstance
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_TOKEN, CONF_URL, EVENT_HOMEASSISTANT_STOP, Platform
@@ -63,6 +64,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type MusicAssistantConfigEntry = ConfigEntry[MusicAssistantEntryData]
 type PlayerAddCallback = Callable[[str], None]
+type ProviderAddCallback = Callable[[str], None]
 
 
 @dataclass
@@ -72,7 +74,13 @@ class MusicAssistantEntryData:
     mass: MusicAssistantClient
     listen_task: asyncio.Task
     discovered_players: set[str] = field(default_factory=set)
-    platform_handlers: dict[Platform, PlayerAddCallback] = field(default_factory=dict)
+    platform_handlers_player: dict[Platform, PlayerAddCallback] = field(
+        default_factory=dict
+    )
+    discovered_providers: set[str] = field(default_factory=set)
+    platform_handlers_provider: dict[Platform, ProviderAddCallback] = field(
+        default_factory=dict
+    )
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -172,7 +180,7 @@ async def async_setup_entry(  # noqa: C901
         """Handle adding Player from MA as HA device + entities."""
         entry.runtime_data.discovered_players.add(player.player_id)
         # run callback for each platform
-        for callback in entry.runtime_data.platform_handlers.values():
+        for callback in entry.runtime_data.platform_handlers_player.values():
             callback(player.player_id)
 
     def remove_player(player_id: str) -> None:
@@ -251,6 +259,49 @@ async def async_setup_entry(  # noqa: C901
                 dev_reg.async_update_device(
                     device.id, remove_config_entry_id=entry.entry_id
                 )
+
+    # providers
+    def add_provider(instance_id: str) -> None:
+        """Handle adding a provider as HA device + entities."""
+        entry.runtime_data.discovered_providers.add(instance_id)
+        # run callback for each platform
+        for callback in entry.runtime_data.platform_handlers_provider.values():
+            callback(instance_id)
+
+    def remove_provider(instance_id: str) -> None:
+        """Handle removing provider from MA as HA device + entities."""
+        if instance_id in entry.runtime_data.discovered_providers:
+            entry.runtime_data.discovered_providers.remove(instance_id)
+        dev_reg = dr.async_get(hass)
+        if hass_device := dev_reg.async_get_device({(DOMAIN, instance_id)}):
+            dev_reg.async_update_device(
+                hass_device.id, remove_config_entry_id=entry.entry_id
+            )
+
+    def handle_providers_updated(event: MassEvent) -> None:
+        """Handle Mass Providers Updated event."""
+        if not event.data:
+            return
+        new_provider_instance_ids = {
+            (ProviderInstance.from_dict(p)).instance_id for p in event.data
+        }
+        previous_provider_instance_ids = entry.runtime_data.discovered_providers
+
+        removed_instance_ids = previous_provider_instance_ids.difference(
+            new_provider_instance_ids
+        )
+        added_instance_ids = new_provider_instance_ids.difference(
+            previous_provider_instance_ids
+        )
+
+        for instance_id in added_instance_ids:
+            add_provider(instance_id)
+        for instance_id in removed_instance_ids:
+            remove_provider(instance_id)
+
+    entry.async_on_unload(
+        mass.subscribe(handle_providers_updated, EventType.PROVIDERS_UPDATED)
+    )
 
     return True
 
