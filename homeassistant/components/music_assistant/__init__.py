@@ -303,6 +303,10 @@ async def async_setup_entry(  # noqa: C901
         mass.subscribe(handle_providers_updated, EventType.PROVIDERS_UPDATED)
     )
 
+    # add all current providers
+    for provider in mass.providers:
+        add_provider(provider.instance_id)
+
     return True
 
 

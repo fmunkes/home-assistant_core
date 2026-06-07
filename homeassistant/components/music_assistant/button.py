@@ -1,6 +1,7 @@
 """Music Assistant Button platform."""
 
 from music_assistant_client.client import MusicAssistantClient
+from music_assistant_models.enums import ProviderFeature, ProviderType
 from music_assistant_models.provider import ProviderInstance
 
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
@@ -9,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import MusicAssistantConfigEntry
-from .entity import MusicAssistantPlayerEntity, MusicAssistantProviderConfigEntity
+from .entity import MusicAssistantPlayerEntity, MusicAssistantProviderEntity
 from .helpers import catch_musicassistant_error
 
 
@@ -30,8 +31,34 @@ async def async_setup_entry(
             ]
         )
 
+    def add_music_provider(provider_instance_id: str) -> None:
+        """Handle add provider."""
+
+        def verify_can_sync(provider: ProviderInstance) -> bool:
+            return bool(
+                {
+                    ProviderFeature.LIBRARY_ALBUMS,
+                    ProviderFeature.LIBRARY_ARTISTS,
+                    ProviderFeature.LIBRARY_AUDIOBOOKS,
+                    ProviderFeature.LIBRARY_PLAYLISTS,
+                    ProviderFeature.LIBRARY_PODCASTS,
+                    ProviderFeature.LIBRARY_RADIOS,
+                }.intersection(provider.supported_features)
+            )
+
+        if (
+            (provider := mass.get_provider(provider_instance_id))
+            and provider.type == ProviderType.MUSIC
+            and verify_can_sync(provider)
+        ):
+            async_add_entities([MusicAssistantSyncMusicProviderButton(mass, provider)])
+
     # register callback to add players when they are discovered
     entry.runtime_data.platform_handlers_player.setdefault(Platform.BUTTON, add_player)
+
+    entry.runtime_data.platform_handlers_provider.setdefault(
+        Platform.BUTTON, add_music_provider
+    )
 
 
 class MusicAssistantFavoriteButton(MusicAssistantPlayerEntity, ButtonEntity):
@@ -48,15 +75,12 @@ class MusicAssistantFavoriteButton(MusicAssistantPlayerEntity, ButtonEntity):
         await self.mass.players.add_currently_playing_to_favorites(self.player_id)
 
 
-class MusicAssistantSyncMusicProviderButton(
-    MusicAssistantProviderConfigEntity, ButtonEntity
-):
+class MusicAssistantSyncMusicProviderButton(MusicAssistantProviderEntity, ButtonEntity):
     """Button entity to sync a music provider with Music Assistant."""
 
     entity_description = ButtonEntityDescription(
         key="sync_music_provider",
         translation_key="sync_music_provider",
-        entity_registry_enabled_default=False,
     )
 
     def __init__(self, mass: MusicAssistantClient, provider: ProviderInstance) -> None:

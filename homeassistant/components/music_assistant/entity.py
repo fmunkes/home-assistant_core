@@ -27,7 +27,7 @@ class MusicAssistantConfigEntity(Entity):
         self.mass = mass
 
 
-class MusicAssistantProviderConfigEntity(MusicAssistantConfigEntity):
+class MusicAssistantProviderEntity(MusicAssistantConfigEntity):
     """Base entity for provider-specific settings."""
 
     _attr_has_entity_name = True
@@ -37,7 +37,14 @@ class MusicAssistantProviderConfigEntity(MusicAssistantConfigEntity):
         """Initialize MusicAssistantProviderConfigEntity."""
         super().__init__(mass)
 
+        self.mass = mass
         self.provider = provider
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, provider.instance_id)},
+            manufacturer=self.provider.name,
+            name=self.provider.name,
+            configuration_url=f"{mass.server_url}/#/settings/editprovider/{provider.instance_id}",
+        )
 
     @property
     def unique_id(self) -> str | None:
