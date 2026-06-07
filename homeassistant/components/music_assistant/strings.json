@@ -251,6 +251,12 @@
       },
       "surround_3d": {
         "name": "Surround 3D"
+      },
+      "tts_pre_announce": {
+        "name": "Pre-announce TTS announcements"
+      },
+      "volume_normalization": {
+        "name": "Volume normalization"
       }
     },
     "text": {

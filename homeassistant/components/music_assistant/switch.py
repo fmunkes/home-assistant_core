@@ -12,7 +12,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import MusicAssistantConfigEntry
-from .const import CONF_TTS_PRE_ANNOUNCE
 from .entity import MusicAssistantPlayerConfigEntity, MusicAssistantPlayerOptionEntity
 from .helpers import catch_musicassistant_error
 
@@ -32,7 +31,8 @@ PLAYER_OPTIONS_SWITCH: Final[dict[str, bool]] = {
 
 PLAYER_CONFIGS_SWITCH: Final[dict[str, bool]] = {
     # translation_key: enabled_by_default
-    CONF_TTS_PRE_ANNOUNCE: True
+    "tts_pre_announce": True,
+    "volume_normalization": True,
 }
 
 
@@ -76,9 +76,23 @@ async def async_setup_entry(
                         ),
                     )
                 )
-        entities.append(
-            MusicAssistantPlayerConfigSwitch(mass, player_id, CONF_TTS_PRE_ANNOUNCE)
-        )
+        if player_configs := mass.players.get_player_configs(player_id):
+            entities.extend(
+                MusicAssistantPlayerConfigSwitch(
+                    mass,
+                    player_id,
+                    player_config.key,
+                    SwitchEntityDescription(
+                        key=f"{player_id}_{player_config.key}",
+                        translation_key=player_config.key,
+                        entity_registry_enabled_default=PLAYER_CONFIGS_SWITCH[
+                            player_config.key
+                        ],
+                    ),
+                )
+                for player_config in player_configs
+                if player_config.key in PLAYER_CONFIGS_SWITCH
+            )
         async_add_entities(entities)
 
     # register callback to add players when they are discovered
@@ -89,14 +103,16 @@ class MusicAssistantPlayerConfigSwitch(MusicAssistantPlayerConfigEntity, SwitchE
     """Representation of a switch entity to control player configs."""
 
     def __init__(
-        self, mass: MusicAssistantClient, player_id: str, config_key: str
+        self,
+        mass: MusicAssistantClient,
+        player_id: str,
+        config_key: str,
+        entity_description: SwitchEntityDescription,
     ) -> None:
         """Initialize MusicAssistantPlayerConfigSwitch."""
         super().__init__(mass, player_id, config_key)
 
-        self.entity_description = SwitchEntityDescription(
-            key=f"{player_id}_{config_key}", translation_key=config_key
-        )
+        self.entity_description = entity_description
 
     @catch_musicassistant_error
     async def async_turn_on(self, **kwargs: Any) -> None:
@@ -117,6 +133,8 @@ class MusicAssistantPlayerConfigSwitch(MusicAssistantPlayerConfigEntity, SwitchE
         self._attr_is_on = (
             player_config_entry.value
             if isinstance(player_config_entry.value, bool)
+            else player_config_entry.default_value
+            if isinstance(player_config_entry.default_value, bool)
             else None
         )
 

@@ -145,8 +145,13 @@ class MusicAssistantPlayerConfigEntity(MusicAssistantEntity):
 
         self.mass_config_key = config_key
 
-        # self.mass.config.get_player_config_entries
-        # self.on_player_config_update(config_key)
+        config_entries = self.mass.players.get_player_configs(player_id)
+        assert config_entries is not None
+
+        for config_entry in config_entries:
+            if config_entry.key == config_key:
+                self.on_player_config_update(config_entry)
+                break
 
     async def async_added_to_hass(self) -> None:
         """Register callbacks."""
