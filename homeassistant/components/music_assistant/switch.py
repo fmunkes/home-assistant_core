@@ -3,6 +3,7 @@
 from typing import Any, Final
 
 from music_assistant_client.client import MusicAssistantClient
+from music_assistant_models.config_entries import ConfigEntry
 from music_assistant_models.player import PlayerOption, PlayerOptionType
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
@@ -11,7 +12,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import MusicAssistantConfigEntry
-from .entity import MusicAssistantPlayerOptionEntity
+from .const import CONF_TTS_PRE_ANNOUNCE
+from .entity import MusicAssistantPlayerConfigEntity, MusicAssistantPlayerOptionEntity
 from .helpers import catch_musicassistant_error
 
 PLAYER_OPTIONS_SWITCH: Final[dict[str, bool]] = {
@@ -28,6 +30,11 @@ PLAYER_OPTIONS_SWITCH: Final[dict[str, bool]] = {
     "surround_3d": False,
 }
 
+PLAYER_CONFIGS_SWITCH: Final[dict[str, bool]] = {
+    # translation_key: enabled_by_default
+    CONF_TTS_PRE_ANNOUNCE: True
+}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -42,7 +49,10 @@ async def async_setup_entry(
         player = mass.players.get(player_id)
         if player is None:
             return
-        entities: list[MusicAssistantPlayerConfigSwitch] = []
+        # Player Options
+        entities: list[
+            MusicAssistantPlayerOptionSwitch | MusicAssistantPlayerConfigSwitch
+        ] = []
         for player_option in player.options:
             if (
                 not player_option.read_only
@@ -53,7 +63,7 @@ async def async_setup_entry(
                     continue
 
                 entities.append(
-                    MusicAssistantPlayerConfigSwitch(
+                    MusicAssistantPlayerOptionSwitch(
                         mass,
                         player_id,
                         player_option=player_option,
@@ -66,14 +76,53 @@ async def async_setup_entry(
                         ),
                     )
                 )
+        entities.append(
+            MusicAssistantPlayerConfigSwitch(mass, player_id, CONF_TTS_PRE_ANNOUNCE)
+        )
         async_add_entities(entities)
 
     # register callback to add players when they are discovered
     entry.runtime_data.platform_handlers.setdefault(Platform.SWITCH, add_player)
 
 
-class MusicAssistantPlayerConfigSwitch(MusicAssistantPlayerOptionEntity, SwitchEntity):
-    """Representation of a Switch entity to control player settings."""
+class MusicAssistantPlayerConfigSwitch(MusicAssistantPlayerConfigEntity, SwitchEntity):
+    """Representation of a switch entity to control player configs."""
+
+    def __init__(
+        self, mass: MusicAssistantClient, player_id: str, config_key: str
+    ) -> None:
+        """Initialize MusicAssistantPlayerConfigSwitch."""
+        super().__init__(mass, player_id, config_key)
+
+        self.entity_description = SwitchEntityDescription(
+            key=f"{player_id}_{config_key}", translation_key=config_key
+        )
+
+    @catch_musicassistant_error
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Handle turn on command."""
+        await self.mass.config.save_player_config(
+            self.player_id, {self.mass_config_key: True}
+        )
+
+    @catch_musicassistant_error
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Handle turn off command."""
+        await self.mass.config.save_player_config(
+            self.player_id, {self.mass_config_key: False}
+        )
+
+    def on_player_config_update(self, player_config_entry: ConfigEntry) -> None:
+        """Update on player config update."""
+        self._attr_is_on = (
+            player_config_entry.value
+            if isinstance(player_config_entry.value, bool)
+            else None
+        )
+
+
+class MusicAssistantPlayerOptionSwitch(MusicAssistantPlayerOptionEntity, SwitchEntity):
+    """Representation of a Switch entity to control player options."""
 
     def __init__(
         self,

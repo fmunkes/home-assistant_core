@@ -77,4 +77,6 @@ ATTR_FANART_IMAGE = "fanart_image"
 
 ATTR_CONF_EXPOSE_PLAYER_TO_HA = "expose_player_to_ha"
 
+CONF_TTS_PRE_ANNOUNCE = "tts_pre_announce"
+
 LOGGER = logging.getLogger(__package__)

@@ -1,7 +1,8 @@
 """Base entity model."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
+from music_assistant_models.config_entries import ConfigEntry
 from music_assistant_models.enums import EventType
 from music_assistant_models.event import MassEvent
 from music_assistant_models.player import Player, PlayerOption
@@ -125,3 +126,52 @@ class MusicAssistantPlayerOptionEntity(MusicAssistantEntity):
 
     def on_player_option_update(self, player_option: PlayerOption) -> None:
         """Callback for player option updates."""
+
+
+class MusicAssistantPlayerConfigEntity(MusicAssistantEntity):
+    """Base entity for Music Assistant Player Configs.
+
+    Player configs are general options of a player, e.g. announcement configuration, and not
+    as unique as Player options to a specific provider.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self, mass: MusicAssistantClient, player_id: str, config_key: str
+    ) -> None:
+        """Initialize MusicAssistantPlayerConfigEntity."""
+        super().__init__(mass, player_id)
+
+        self.mass_config_key = config_key
+
+        # self.mass.config.get_player_config_entries
+        # self.on_player_config_update(config_key)
+
+    async def async_added_to_hass(self) -> None:
+        """Register callbacks."""
+        # need callbacks of parent to catch availability
+        await super().async_added_to_hass()
+
+        # main callback for player options
+        self.async_on_remove(
+            self.mass.subscribe(
+                self.__on_mass_player_config_update,
+                EventType.PLAYER_CONFIG_UPDATED,
+                self.player_id,
+            )
+        )
+
+    def __on_mass_player_config_update(self, event: MassEvent) -> None:
+        """Call when we receive an event from MusicAssistant."""
+        if event.object_id != self.player_id:
+            return
+        player_configs = cast("dict[str, dict]", event.data.get("values", {}))
+        for config_key, config_entry_dict in player_configs.items():
+            if config_key == self.mass_config_key:
+                self.on_player_config_update(ConfigEntry.from_dict(config_entry_dict))
+                self.async_write_ha_state()
+                break
+
+    def on_player_config_update(self, player_config_entry: ConfigEntry) -> None:
+        """Callback for player config updates."""
