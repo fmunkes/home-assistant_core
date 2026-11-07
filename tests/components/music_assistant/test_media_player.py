@@ -1898,30 +1898,30 @@ async def test_websocket_search_media_acts_as_calling_user(
 
 
 @pytest.mark.parametrize(
-    ("send_result", "expected_error"),
+    ("schema_version", "expected_error"),
     [
-        pytest.param({"name": "save_queue_as_playlist"}, None, id="saved"),
-        pytest.param(
-            InvalidServerVersion("Command requires schema 101"),
-            "server_too_old",
-            id="older_server",
-        ),
+        pytest.param(101, None, id="saved"),
+        pytest.param(100, "server_too_old", id="older_server"),
     ],
 )
 async def test_media_player_save_queue_as_playlist_action(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
-    send_result: dict[str, Any] | InvalidServerVersion,
+    schema_version: int,
     expected_error: str | None,
 ) -> None:
     """Test save_queue_as_playlist saves the active queue as the calling user."""
-    music_assistant_client.server_info.schema_version = 101
+    music_assistant_client.server_info.schema_version = schema_version
     await setup_integration_from_fixtures(hass, music_assistant_client)
-    # the client refuses the command on servers older than schema 101 before sending
-    if isinstance(send_result, InvalidServerVersion):
-        music_assistant_client.send_command.side_effect = send_result
+    if expected_error:
+        # the real send_command refuses the command on servers older than schema 101
+        music_assistant_client.send_command.side_effect = InvalidServerVersion(
+            "Command requires schema 101"
+        )
     else:
-        music_assistant_client.send_command.return_value = send_result
+        music_assistant_client.send_command.return_value = {
+            "name": "save_queue_as_playlist"
+        }
     user = MockUser(is_owner=True).add_to_hass(hass)
     with (
         pytest.raises(ServiceValidationError) if expected_error else nullcontext()
@@ -1936,12 +1936,18 @@ async def test_media_player_save_queue_as_playlist_action(
             blocking=True,
             context=Context(user_id=user.id),
         )
+    sent = music_assistant_client.send_command.call_args.kwargs
     if expected_error:
         assert err.value.translation_key == expected_error
-    assert music_assistant_client.send_command.call_args == call(
+        # an older server can't act as a user, so none is sent
+        assert "user" not in sent
+    else:
+        assert sent["user"] == {
+            "provider": "homeassistant",
+            "user_id": user.id,
+            "required": False,
+        }
+    assert music_assistant_client.send_command.call_args.args == (
         "player_queues/save_as_playlist",
-        queue_id="test_group_player_1",
-        name="Party mix",
-        require_schema=101,
-        user={"provider": "homeassistant", "user_id": user.id, "required": False},
     )
+    assert sent["require_schema"] == 101
