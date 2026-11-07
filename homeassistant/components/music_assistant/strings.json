@@ -397,6 +397,24 @@
     }
   },
   "services": {
+    "get_item": {
+      "description": "Retrieves the details of a media item from Music Assistant.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Select the Music Assistant instance to use.",
+          "name": "[%key:component::music_assistant::services::search::fields::config_entry_id::name%]"
+        },
+        "media_id": {
+          "description": "URI of the item, for example from the search or get library items actions.",
+          "name": "Media URI"
+        },
+        "username": {
+          "description": "Music Assistant username to run this action as.",
+          "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
+        }
+      },
+      "name": "Get item details"
+    },
     "get_library": {
       "description": "Retrieves items from a Music Assistant library.",
       "fields": {

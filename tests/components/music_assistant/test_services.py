@@ -8,17 +8,19 @@ from music_assistant_models.enums import MediaType
 from music_assistant_models.errors import UserNotFoundError
 from music_assistant_models.media_items import SearchResults
 import pytest
-from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry, MockUser
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.music_assistant.const import (
     ATTR_FAVORITE,
+    ATTR_MEDIA_ID,
     ATTR_MEDIA_TYPE,
     ATTR_SEARCH_NAME,
     ATTR_USERNAME,
     DOMAIN,
 )
 from homeassistant.components.music_assistant.services import (
+    SERVICE_GET_ITEM,
     SERVICE_GET_LIBRARY,
     SERVICE_SEARCH,
 )
@@ -343,3 +345,30 @@ async def test_get_library_action_with_unknown_username(
         )
     assert err.value.translation_key == "invalid_username"
     assert err.value.translation_placeholders == {"username": "nobody"}
+
+
+async def test_get_item_action(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Test get_item returns the item as the calling user sees it."""
+    music_assistant_client.server_info.schema_version = 101
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.music.get_item_by_uri = AsyncMock(
+        return_value=create_library_albums_from_fixture()[0]
+    )
+    user = MockUser(is_owner=True).add_to_hass(hass)
+    response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_ITEM,
+        {ATTR_CONFIG_ENTRY_ID: entry.entry_id, ATTR_MEDIA_ID: "library://album/1"},
+        blocking=True,
+        return_response=True,
+        context=Context(user_id=user.id),
+    )
+    assert music_assistant_client.music.get_item_by_uri.call_args == call(
+        "library://album/1",
+        user={"provider": "homeassistant", "user_id": user.id, "required": False},
+    )
+    assert response == snapshot

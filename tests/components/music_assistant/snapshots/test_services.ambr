@@ -1,4 +1,25 @@
 # serializer version: 1
+# name: test_get_item_action
+  dict({
+    'artists': list([
+      dict({
+        'image': None,
+        'media_type': <MediaType.ARTIST: 'artist'>,
+        'name': 'A Space Love Adventure',
+        'uri': 'library://artist/289',
+        'version': '',
+      }),
+    ]),
+    'discart_image': None,
+    'explicit': False,
+    'favorite': False,
+    'image': None,
+    'media_type': <MediaType.ALBUM: 'album'>,
+    'name': 'Synth Punk EP',
+    'uri': 'library://album/396',
+    'version': '',
+  })
+# ---
 # name: test_get_library_action[album]
   dict({
     'items': list([
