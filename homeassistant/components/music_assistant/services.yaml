@@ -295,3 +295,31 @@ get_library:
       example: "john"
       selector:
         text:
+
+move_queue_item:
+  target:
+    entity:
+      domain: media_player
+      integration: music_assistant
+      device_class: speaker
+      supported_features:
+        - media_player.MediaPlayerEntityFeature.PLAY_MEDIA
+  fields:
+    queue_item_id:
+      required: true
+      example: "5d95dc5be77e4f7eb4939f62cfef527b"
+      selector:
+        text:
+    shift:
+      required: true
+      example: -1
+      selector:
+        number:
+          min: -1000
+          max: 1000
+          step: 1
+          mode: box
+    username:
+      example: "john"
+      selector:
+        text:
