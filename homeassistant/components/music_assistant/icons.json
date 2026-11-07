@@ -11,6 +11,7 @@
     "get_queue": { "service": "mdi:playlist-music" },
     "play_announcement": { "service": "mdi:bullhorn" },
     "play_media": { "service": "mdi:play" },
+    "save_queue_as_playlist": { "service": "mdi:playlist-plus" },
     "search": { "service": "mdi:magnify" },
     "transfer_queue": { "service": "mdi:transfer" }
   }
