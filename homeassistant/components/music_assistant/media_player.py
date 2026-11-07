@@ -737,6 +737,21 @@ class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
         )
         return response
 
+    @catch_musicassistant_error
+    async def _async_handle_move_queue_item(
+        self, queue_item_id: str, shift: int, username: str | None = None
+    ) -> None:
+        """Move an item of the active queue."""
+        if not self.active_queue:
+            raise HomeAssistantError("No active queue found")
+        with catch_user_not_found(username):
+            await self.mass.player_queues.move_item(
+                self.active_queue.queue_id,
+                queue_item_id,
+                shift,
+                user=acting_user(self.mass, username, self._context),
+            )
+
     @override
     async def async_browse_media(
         self,

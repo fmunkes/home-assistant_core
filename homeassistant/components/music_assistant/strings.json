@@ -466,6 +466,24 @@
       },
       "name": "Get playerQueue details"
     },
+    "move_queue_item": {
+      "description": "Moves an item of the currently active queue of a Music Assistant player.",
+      "fields": {
+        "queue_item_id": {
+          "description": "The ID of the queue item, as returned by the get queue action.",
+          "name": "Queue item ID"
+        },
+        "shift": {
+          "description": "Number of positions to move the item: negative moves it up, positive moves it down, 0 plays it next.",
+          "name": "Shift"
+        },
+        "username": {
+          "description": "Music Assistant username to run this action as.",
+          "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
+        }
+      },
+      "name": "Move queue item"
+    },
     "play_announcement": {
       "description": "Plays an announcement on a Music Assistant player with more fine-grained control options.",
       "fields": {

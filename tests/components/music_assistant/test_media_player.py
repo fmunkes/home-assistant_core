@@ -61,7 +61,9 @@ from homeassistant.components.music_assistant.const import (
     ATTR_MESSAGE,
     ATTR_OFFSET,
     ATTR_PRE_ANNOUNCE_URL,
+    ATTR_QUEUE_ITEM_ID,
     ATTR_RADIO_MODE,
+    ATTR_SHIFT,
     ATTR_SOURCE_PLAYER,
     ATTR_START_ITEM,
     ATTR_TTS_ENTITY_ID,
@@ -73,6 +75,7 @@ from homeassistant.components.music_assistant.const import (
 from homeassistant.components.music_assistant.media_player import MusicAssistantPlayer
 from homeassistant.components.music_assistant.services import (
     SERVICE_GET_QUEUE,
+    SERVICE_MOVE_QUEUE_ITEM,
     SERVICE_PLAY_ANNOUNCEMENT,
     SERVICE_PLAY_MEDIA_ADVANCED,
     SERVICE_TRANSFER_QUEUE,
@@ -1872,4 +1875,33 @@ async def test_websocket_search_media_acts_as_calling_user(
         provider=AuthProviderType.HOME_ASSISTANT,
         user_id=hass_admin_user.id,
         required=False,
+    )
+
+
+async def test_media_player_move_queue_item_action(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test move_queue_item runs on the active queue as the calling user."""
+    music_assistant_client.server_info.schema_version = 101
+    await setup_integration_from_fixtures(hass, music_assistant_client)
+    user = MockUser(is_owner=True).add_to_hass(hass)
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_MOVE_QUEUE_ITEM,
+        {
+            ATTR_ENTITY_ID: "media_player.test_group_player_1",
+            ATTR_QUEUE_ITEM_ID: "queue_item_1",
+            ATTR_SHIFT: -1,
+        },
+        blocking=True,
+        context=Context(user_id=user.id),
+    )
+    assert music_assistant_client.send_command.call_args == call(
+        "player_queues/move_item",
+        queue_id="test_group_player_1",
+        queue_item_id="queue_item_1",
+        pos_shift=-1,
+        require_schema=101,
+        user={"provider": "homeassistant", "user_id": user.id, "required": False},
     )
