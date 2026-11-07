@@ -1,8 +1,10 @@
 """Test Music Assistant media player entities."""
 
+from contextlib import nullcontext
 from typing import Any
 from unittest.mock import MagicMock, call, patch
 
+from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.constants import PLAYER_CONTROL_NONE
@@ -75,12 +77,14 @@ from homeassistant.components.music_assistant.services import (
     SERVICE_GET_QUEUE,
     SERVICE_PLAY_ANNOUNCEMENT,
     SERVICE_PLAY_MEDIA_ADVANCED,
+    SERVICE_SAVE_QUEUE_AS_PLAYLIST,
     SERVICE_TRANSFER_QUEUE,
 )
 from homeassistant.components.tts import DATA_TTS_MANAGER
 from homeassistant.config_entries import ConfigFlow, HomeAssistantError
 from homeassistant.const import (
     ATTR_ENTITY_ID,
+    ATTR_NAME,
     SERVICE_MEDIA_NEXT_TRACK,
     SERVICE_MEDIA_PAUSE,
     SERVICE_MEDIA_PLAY,
@@ -1872,4 +1876,54 @@ async def test_websocket_search_media_acts_as_calling_user(
         provider=AuthProviderType.HOME_ASSISTANT,
         user_id=hass_admin_user.id,
         required=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("send_result", "expected_error"),
+    [
+        pytest.param({"name": "save_queue_as_playlist"}, None, id="saved"),
+        pytest.param(
+            InvalidServerVersion("Command requires schema 101"),
+            "server_too_old",
+            id="older_server",
+        ),
+    ],
+)
+async def test_media_player_save_queue_as_playlist_action(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+    send_result: dict[str, Any] | InvalidServerVersion,
+    expected_error: str | None,
+) -> None:
+    """Test save_queue_as_playlist saves the active queue as the calling user."""
+    music_assistant_client.server_info.schema_version = 101
+    await setup_integration_from_fixtures(hass, music_assistant_client)
+    # the client refuses the command on servers older than schema 101 before sending
+    if isinstance(send_result, InvalidServerVersion):
+        music_assistant_client.send_command.side_effect = send_result
+    else:
+        music_assistant_client.send_command.return_value = send_result
+    user = MockUser(is_owner=True).add_to_hass(hass)
+    with (
+        pytest.raises(ServiceValidationError) if expected_error else nullcontext()
+    ) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_SAVE_QUEUE_AS_PLAYLIST,
+            {
+                ATTR_ENTITY_ID: "media_player.test_group_player_1",
+                ATTR_NAME: "Party mix",
+            },
+            blocking=True,
+            context=Context(user_id=user.id),
+        )
+    if expected_error:
+        assert err.value.translation_key == expected_error
+    assert music_assistant_client.send_command.call_args == call(
+        "player_queues/save_as_playlist",
+        queue_id="test_group_player_1",
+        name="Party mix",
+        require_schema=101,
+        user={"provider": "homeassistant", "user_id": user.id, "required": False},
     )

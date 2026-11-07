@@ -295,3 +295,22 @@ get_library:
       example: "john"
       selector:
         text:
+
+save_queue_as_playlist:
+  target:
+    entity:
+      domain: media_player
+      integration: music_assistant
+      device_class: speaker
+      supported_features:
+        - media_player.MediaPlayerEntityFeature.PLAY_MEDIA
+  fields:
+    name:
+      required: true
+      example: "Party mix"
+      selector:
+        text:
+    username:
+      example: "john"
+      selector:
+        text:

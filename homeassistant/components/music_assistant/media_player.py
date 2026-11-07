@@ -6,6 +6,7 @@ from contextlib import suppress
 import os
 from typing import TYPE_CHECKING, Any, override
 
+from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.constants import PLAYER_CONTROL_NONE
 from music_assistant_models.enums import (
@@ -736,6 +737,26 @@ class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
             }
         )
         return response
+
+    @catch_musicassistant_error
+    async def _async_handle_save_queue_as_playlist(
+        self, name: str, username: str | None = None
+    ) -> None:
+        """Save the items of the active queue as a new playlist."""
+        if not self.active_queue:
+            raise HomeAssistantError("No active queue found")
+        with catch_user_not_found(username):
+            try:
+                await self.mass.player_queues.save_as_playlist(
+                    self.active_queue.queue_id,
+                    name,
+                    user=acting_user(self.mass, username, self._context),
+                )
+            except InvalidServerVersion as err:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="server_too_old",
+                ) from err
 
     @override
     async def async_browse_media(
