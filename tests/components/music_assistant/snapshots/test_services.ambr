@@ -1,4 +1,15 @@
 # serializer version: 1
+# name: test_create_playlist_action
+  dict({
+    'explicit': None,
+    'favorite': None,
+    'image': None,
+    'media_type': <MediaType.PLAYLIST: 'playlist'>,
+    'name': 'Party mix',
+    'uri': 'library://playlist/playlist_1',
+    'version': '',
+  })
+# ---
 # name: test_get_library_action[album]
   dict({
     'items': list([

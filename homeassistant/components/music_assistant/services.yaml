@@ -295,3 +295,24 @@ get_library:
       example: "john"
       selector:
         text:
+
+create_playlist:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: music_assistant
+    name:
+      required: true
+      example: "Party mix"
+      selector:
+        text:
+    provider:
+      example: "builtin"
+      selector:
+        text:
+    username:
+      example: "john"
+      selector:
+        text:
