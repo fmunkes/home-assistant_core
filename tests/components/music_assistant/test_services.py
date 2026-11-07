@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, call
 from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.enums import MediaType
-from music_assistant_models.errors import UserNotFoundError
+from music_assistant_models.errors import ProviderUnavailableError, UserNotFoundError
 from music_assistant_models.media_items import Playlist, SearchResults
 import pytest
 from pytest_homeassistant.common import MockConfigEntry, MockUser
@@ -26,7 +26,7 @@ from homeassistant.components.music_assistant.services import (
 )
 from homeassistant.const import ATTR_CONFIG_ENTRY_ID, ATTR_NAME
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from .common import create_library_albums_from_fixture, setup_integration_from_fixtures
 
@@ -384,3 +384,28 @@ async def test_create_playlist_action(
         user={"provider": "homeassistant", "user_id": user.id, "required": False},
     )
     assert response == snapshot
+
+
+async def test_create_playlist_action_older_server_error(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test create_playlist sends no user to an older server and converts its errors."""
+    music_assistant_client.server_info.schema_version = 100
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.send_command.side_effect = ProviderUnavailableError(
+        "Provider spotify is not available"
+    )
+    with pytest.raises(HomeAssistantError, match="Provider spotify is not available"):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_CREATE_PLAYLIST,
+            {
+                ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+                ATTR_NAME: "Party mix",
+                ATTR_PROVIDER: "spotify",
+            },
+            blocking=True,
+            return_response=True,
+        )
+    assert "user" not in music_assistant_client.send_command.call_args.kwargs

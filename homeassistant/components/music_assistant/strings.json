@@ -415,11 +415,11 @@
           "name": "Playlist name"
         },
         "provider": {
-          "description": "Music Assistant provider instance or domain to create the playlist in. Leave empty to create it in the Music Assistant library.",
+          "description": "Music Assistant provider instance or domain to create the playlist in. When omitted, it is created as a Music Assistant playlist. The playlist is added to the Music Assistant library in either case.",
           "name": "Provider"
         },
         "username": {
-          "description": "Music Assistant username to create the playlist as. The playlist belongs to this user.",
+          "description": "Music Assistant username to create the playlist as. The playlist belongs to this user. Defaults to the Music Assistant user linked to the Home Assistant user making the request.",
           "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
         }
       },

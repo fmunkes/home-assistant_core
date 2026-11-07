@@ -62,6 +62,7 @@ from .const import (
 )
 from .helpers import (
     acting_user,
+    catch_musicassistant_error,
     catch_user_not_found,
     get_music_assistant_client,
     user_from_context,
@@ -362,6 +363,7 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
     return response
 
 
+@catch_musicassistant_error
 async def handle_create_playlist(call: ServiceCall) -> ServiceResponse:
     """Handle create_playlist action."""
     mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
