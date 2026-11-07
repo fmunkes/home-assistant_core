@@ -395,6 +395,7 @@ async def handle_add_to_playlist(call: ServiceCall) -> None:
         )
 
 
+@catch_musicassistant_error
 async def handle_remove_from_playlist(call: ServiceCall) -> None:
     """Handle remove_from_playlist action."""
     mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])

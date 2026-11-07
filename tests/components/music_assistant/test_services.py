@@ -468,3 +468,27 @@ async def test_add_to_playlist_action_older_server_error(
             blocking=True,
         )
     assert "user" not in music_assistant_client.send_command.call_args.kwargs
+
+
+async def test_remove_from_playlist_action_older_server_error(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test remove_from_playlist sends no user to an older server and converts errors."""
+    music_assistant_client.server_info.schema_version = 100
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.send_command.side_effect = MediaNotFoundError(
+        "Playlist 999 not found"
+    )
+    with pytest.raises(HomeAssistantError, match="Playlist 999 not found"):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_REMOVE_FROM_PLAYLIST,
+            {
+                ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+                ATTR_PLAYLIST: "library://playlist/999",
+                ATTR_POSITIONS: [3],
+            },
+            blocking=True,
+        )
+    assert "user" not in music_assistant_client.send_command.call_args.kwargs

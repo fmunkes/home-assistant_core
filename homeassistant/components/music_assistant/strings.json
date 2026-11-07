@@ -566,7 +566,7 @@
       "name": "Play media"
     },
     "remove_from_playlist": {
-      "description": "Removes items from a playlist in the Music Assistant library.",
+      "description": "Removes items from a playlist in the Music Assistant library. The items are removed in the background, so errors while removing them are not reported back.",
       "fields": {
         "config_entry_id": {
           "description": "[%key:component::music_assistant::services::add_to_playlist::fields::config_entry_id::description%]",
