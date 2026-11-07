@@ -1,7 +1,7 @@
 """Custom actions (previously known as services) for the Music Assistant integration."""
 
-from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Awaitable, Callable, Sequence
+from typing import TYPE_CHECKING, Any
 
 from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_models.enums import MediaType, QueueOption
@@ -60,6 +60,7 @@ from .const import (
     ATTR_URL,
     ATTR_USE_PRE_ANNOUNCE,
     ATTR_USERNAME,
+    COLLECTION_ITEM_ID_SEPARATOR,
     DOMAIN,
 )
 from .helpers import (
@@ -80,6 +81,7 @@ if TYPE_CHECKING:
         Album,
         Artist,
         Audiobook,
+        MediaCollection,
         MediaItemType,
         Playlist,
         Podcast,
@@ -407,6 +409,26 @@ async def handle_get_item_contents(call: ServiceCall) -> ServiceResponse:
                 contents = await mass.music.get_podcast_episodes(
                     item.item_id, item.provider, limit=limit, offset=offset, user=user
                 )
+            elif item.media_type is MediaType.COLLECTION:
+                # the collection's item id starts with the media type of its items
+                items_media_type = item.item_id.split(COLLECTION_ITEM_ID_SEPARATOR)[0]
+                collection_getters: dict[
+                    MediaType, Callable[..., Awaitable[MediaCollection[Any]]]
+                ] = {
+                    MediaType.ALBUM: mass.music.get_album_collection,
+                    MediaType.ARTIST: mass.music.get_artist_collection,
+                    MediaType.AUDIOBOOK: mass.music.get_audiobook_collection,
+                    MediaType.GENRE: mass.music.get_genre_collection,
+                    MediaType.PLAYLIST: mass.music.get_playlist_collection,
+                    MediaType.PODCAST: mass.music.get_podcast_collection,
+                    MediaType.RADIO: mass.music.get_radio_collection,
+                    MediaType.TRACK: mass.music.get_track_collection,
+                }
+                get_collection = collection_getters[MediaType(items_media_type)]
+                collection = await get_collection(
+                    item.item_id, limit=limit, offset=offset, user=user
+                )
+                contents = collection.items
             else:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,

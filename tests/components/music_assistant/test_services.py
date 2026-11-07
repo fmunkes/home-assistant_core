@@ -7,7 +7,13 @@ from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.enums import MediaType
 from music_assistant_models.errors import UserNotFoundError
-from music_assistant_models.media_items import Playlist, SearchResults, Track
+from music_assistant_models.media_items import (
+    Audiobook,
+    MediaCollection,
+    Playlist,
+    SearchResults,
+    Track,
+)
 import pytest
 from pytest_homeassistant.common import MockConfigEntry, MockUser
 from syrupy.assertion import SnapshotAssertion
@@ -396,6 +402,54 @@ async def test_get_item_contents_action(
     # the position is what remove actions need to address a playlist item
     assert response["items"][0]["position"] == 3
     assert response == snapshot
+
+
+async def test_get_item_contents_action_collection(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test get_item_contents lists a collection through its items' media type."""
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music = music_assistant_client.music
+    collection_id = "audiobook___Book series"
+    music.get_item_by_uri = AsyncMock(
+        return_value=MediaCollection[Audiobook](
+            item_id=collection_id,
+            provider="library",
+            name="Book series",
+            provider_mappings=set(),
+        )
+    )
+    music.get_audiobook_collection = AsyncMock(
+        return_value=MediaCollection[Audiobook](
+            item_id=collection_id,
+            provider="library",
+            name="Book series",
+            provider_mappings=set(),
+            items=[
+                Audiobook(
+                    item_id="book_1",
+                    provider="library",
+                    name="Book 1",
+                    provider_mappings=set(),
+                )
+            ],
+        )
+    )
+    response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_ITEM_CONTENTS,
+        {
+            ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+            ATTR_MEDIA_ID: f"library://collection/{collection_id}",
+        },
+        blocking=True,
+        return_response=True,
+    )
+    assert music.get_audiobook_collection.call_args == call(
+        collection_id, limit=25, offset=0, user=None
+    )
+    assert [item["name"] for item in response["items"]] == ["Book 1"]
 
 
 @pytest.mark.parametrize(
