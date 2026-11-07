@@ -215,7 +215,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
         entity_domain=MEDIA_PLAYER_DOMAIN,
         entity_device_classes=PLAYER_ENTITY_DEVICE_CLASSES,
         schema={
-            probatio.Required(ATTR_SECONDS): int,
+            probatio.Required(ATTR_SECONDS): probatio.Coerce(int),
             probatio.Optional(ATTR_USERNAME): cv.string,
         },
         func="_async_handle_skip_seconds",

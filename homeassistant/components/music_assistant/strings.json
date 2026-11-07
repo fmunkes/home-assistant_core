@@ -591,7 +591,7 @@
           "name": "Seconds"
         },
         "username": {
-          "description": "Music Assistant username to run this action as.",
+          "description": "Music Assistant username to run this action as. Defaults to the Music Assistant user linked to the Home Assistant user making the request.",
           "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
         }
       },
