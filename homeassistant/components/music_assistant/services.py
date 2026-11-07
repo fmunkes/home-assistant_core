@@ -2,7 +2,9 @@
 
 from typing import TYPE_CHECKING
 
+from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_models.enums import MediaType, QueueOption
+from music_assistant_models.media_items import Track
 import probatio
 
 from homeassistant.components.media_player import (
@@ -36,6 +38,8 @@ from .const import (
     ATTR_ITEMS,
     ATTR_LIBRARY_ONLY,
     ATTR_LIMIT,
+    ATTR_LRC_LYRICS,
+    ATTR_LYRICS,
     ATTR_MEDIA_ID,
     ATTR_MEDIA_TYPE,
     ATTR_MESSAGE,
@@ -59,9 +63,15 @@ from .const import (
     ATTR_USERNAME,
     DOMAIN,
 )
-from .helpers import catch_user_not_found, get_music_assistant_client, user_from_context
+from .helpers import (
+    acting_user,
+    catch_user_not_found,
+    get_music_assistant_client,
+    user_from_context,
+)
 from .schemas import (
     LIBRARY_RESULTS_SCHEMA,
+    LYRICS_SCHEMA,
     SEARCH_RESULT_SCHEMA,
     media_item_dict_from_mass_item,
 )
@@ -74,7 +84,6 @@ if TYPE_CHECKING:
         Playlist,
         Podcast,
         Radio,
-        Track,
     )
 
 SERVICE_SEARCH = "search"
@@ -83,6 +92,7 @@ SERVICE_PLAY_MEDIA_ADVANCED = "play_media"
 SERVICE_PLAY_ANNOUNCEMENT = "play_announcement"
 SERVICE_TRANSFER_QUEUE = "transfer_queue"
 SERVICE_GET_QUEUE = "get_queue"
+SERVICE_GET_LYRICS = "get_lyrics"
 
 DEFAULT_OFFSET = 0
 DEFAULT_LIMIT = 25
@@ -130,6 +140,20 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 probatio.Optional(ATTR_ORDER_BY): cv.string,
                 probatio.Optional(ATTR_ALBUM_TYPE): list[MediaType],
                 probatio.Optional(ATTR_ALBUM_ARTISTS_ONLY): cv.boolean,
+                probatio.Optional(ATTR_USERNAME): cv.string,
+            }
+        ),
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_LYRICS,
+        handle_get_lyrics,
+        schema=probatio.Schema(
+            {
+                probatio.Required(ATTR_CONFIG_ENTRY_ID): str,
+                probatio.Required(ATTR_MEDIA_ID): cv.string,
                 probatio.Optional(ATTR_USERNAME): cv.string,
             }
         ),
@@ -336,5 +360,32 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
             ATTR_ORDER_BY: order_by,
             ATTR_MEDIA_TYPE: media_type,
         }
+    )
+    return response
+
+
+async def handle_get_lyrics(call: ServiceCall) -> ServiceResponse:
+    """Handle get_lyrics action."""
+    mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    username = call.data.get(ATTR_USERNAME)
+    media_id = call.data[ATTR_MEDIA_ID]
+    with catch_user_not_found(username):
+        user = acting_user(mass, username, call.context)
+        track = await mass.music.get_item_by_uri(media_id, user=user)
+        if not isinstance(track, Track):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="not_a_track",
+                translation_placeholders={"media_id": media_id},
+            )
+        try:
+            lyrics, lrc_lyrics = await mass.metadata.get_track_lyrics(track, user=user)
+        except InvalidServerVersion as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="server_too_old",
+            ) from err
+    response: ServiceResponse = LYRICS_SCHEMA(
+        {ATTR_LYRICS: lyrics, ATTR_LRC_LYRICS: lrc_lyrics}
     )
     return response

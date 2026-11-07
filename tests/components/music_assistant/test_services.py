@@ -3,16 +3,18 @@
 from unittest.mock import AsyncMock, MagicMock, call
 
 from music_assistant_client.helpers import LinkedUser
+from music_assistant_client.metadata import Metadata
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.enums import MediaType
 from music_assistant_models.errors import UserNotFoundError
-from music_assistant_models.media_items import SearchResults
+from music_assistant_models.media_items import SearchResults, Track
 import pytest
-from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry, MockUser
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.music_assistant.const import (
     ATTR_FAVORITE,
+    ATTR_MEDIA_ID,
     ATTR_MEDIA_TYPE,
     ATTR_SEARCH_NAME,
     ATTR_USERNAME,
@@ -20,6 +22,7 @@ from homeassistant.components.music_assistant.const import (
 )
 from homeassistant.components.music_assistant.services import (
     SERVICE_GET_LIBRARY,
+    SERVICE_GET_LYRICS,
     SERVICE_SEARCH,
 )
 from homeassistant.const import ATTR_CONFIG_ENTRY_ID
@@ -343,3 +346,49 @@ async def test_get_library_action_with_unknown_username(
         )
     assert err.value.translation_key == "invalid_username"
     assert err.value.translation_placeholders == {"username": "nobody"}
+
+
+async def test_get_lyrics_action(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test get_lyrics returns the lyrics of a track as the calling user."""
+    music_assistant_client.server_info.schema_version = 101
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.metadata = Metadata(music_assistant_client)
+    track = Track(
+        item_id="track_1", provider="library", name="Track 1", provider_mappings=set()
+    )
+    music_assistant_client.music.get_item_by_uri = AsyncMock(return_value=track)
+    music_assistant_client.send_command.return_value = [
+        "La la la",
+        "[00:01.00]La la la",
+    ]
+    user = MockUser(is_owner=True).add_to_hass(hass)
+    response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_LYRICS,
+        {ATTR_CONFIG_ENTRY_ID: entry.entry_id, ATTR_MEDIA_ID: track.uri},
+        blocking=True,
+        return_response=True,
+        context=Context(user_id=user.id),
+    )
+    calling_user = {"provider": "homeassistant", "user_id": user.id, "required": False}
+    assert music_assistant_client.send_command.call_args == call(
+        "metadata/get_track_lyrics", track=track, require_schema=101, user=calling_user
+    )
+    assert response == {"lyrics": "La la la", "lrc_lyrics": "[00:01.00]La la la"}
+
+    # lyrics only exist for tracks
+    music_assistant_client.music.get_item_by_uri = AsyncMock(
+        return_value=create_library_albums_from_fixture()[0]
+    )
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_GET_LYRICS,
+            {ATTR_CONFIG_ENTRY_ID: entry.entry_id, ATTR_MEDIA_ID: "library://album/1"},
+            blocking=True,
+            return_response=True,
+        )
+    assert err.value.translation_key == "not_a_track"

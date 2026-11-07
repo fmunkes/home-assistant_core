@@ -30,6 +30,8 @@ from .const import (
     ATTR_ITEM_ID,
     ATTR_ITEMS,
     ATTR_LIMIT,
+    ATTR_LRC_LYRICS,
+    ATTR_LYRICS,
     ATTR_MEDIA_ITEM,
     ATTR_MEDIA_TYPE,
     ATTR_NEXT_ITEM,
@@ -225,5 +227,13 @@ QUEUE_DETAILS_SCHEMA = probatio.Schema(
         probatio.Required(ATTR_CURRENT_ITEM): probatio.Any(None, QUEUE_ITEM_SCHEMA),
         probatio.Required(ATTR_NEXT_ITEM): probatio.Any(None, QUEUE_ITEM_SCHEMA),
         probatio.Optional(ATTR_QUEUE_ITEMS): [QUEUE_ITEM_SCHEMA],
+    }
+)
+
+
+LYRICS_SCHEMA = probatio.Schema(
+    {
+        probatio.Required(ATTR_LYRICS): probatio.Any(None, cv.string),
+        probatio.Required(ATTR_LRC_LYRICS): probatio.Any(None, cv.string),
     }
 )

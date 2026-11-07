@@ -295,3 +295,20 @@ get_library:
       example: "john"
       selector:
         text:
+
+get_lyrics:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: music_assistant
+    media_id:
+      required: true
+      example: "library://track/12"
+      selector:
+        text:
+    username:
+      example: "john"
+      selector:
+        text:
