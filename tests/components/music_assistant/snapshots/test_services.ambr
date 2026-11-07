@@ -391,6 +391,26 @@
     'order_by': 'name',
   })
 # ---
+# name: test_get_recommendations_action
+  dict({
+    'recommendations': list([
+      dict({
+        'items': list([
+          dict({
+            'explicit': None,
+            'favorite': None,
+            'image': None,
+            'media_type': <MediaType.TRACK: 'track'>,
+            'name': 'Track 1',
+            'uri': 'library://track/track_1',
+            'version': '',
+          }),
+        ]),
+        'name': 'Recently played',
+      }),
+    ]),
+  })
+# ---
 # name: test_search_action
   dict({
     'albums': list([

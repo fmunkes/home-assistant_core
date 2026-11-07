@@ -6,9 +6,14 @@ from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.enums import MediaType
 from music_assistant_models.errors import UserNotFoundError
-from music_assistant_models.media_items import SearchResults
+from music_assistant_models.media_items import (
+    BrowseFolder,
+    RecommendationFolder,
+    SearchResults,
+    Track,
+)
 import pytest
-from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry, MockUser
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.music_assistant.const import (
@@ -20,6 +25,7 @@ from homeassistant.components.music_assistant.const import (
 )
 from homeassistant.components.music_assistant.services import (
     SERVICE_GET_LIBRARY,
+    SERVICE_GET_RECOMMENDATIONS,
     SERVICE_SEARCH,
 )
 from homeassistant.const import ATTR_CONFIG_ENTRY_ID
@@ -343,3 +349,44 @@ async def test_get_library_action_with_unknown_username(
         )
     assert err.value.translation_key == "invalid_username"
     assert err.value.translation_placeholders == {"username": "nobody"}
+
+
+async def test_get_recommendations_action(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Test get_recommendations returns the playable items of each row."""
+    music_assistant_client.server_info.schema_version = 101
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.send_command.return_value = [
+        RecommendationFolder(
+            item_id="recently_played",
+            provider="library",
+            name="Recently played",
+            items=[
+                Track(
+                    item_id="track_1",
+                    provider="library",
+                    name="Track 1",
+                    provider_mappings=set(),
+                ),
+                BrowseFolder(item_id="folder_1", provider="library", name="Folder 1"),
+            ],
+        ).to_dict()
+    ]
+    user = MockUser(is_owner=True).add_to_hass(hass)
+    response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_RECOMMENDATIONS,
+        {ATTR_CONFIG_ENTRY_ID: entry.entry_id},
+        blocking=True,
+        return_response=True,
+        context=Context(user_id=user.id),
+    )
+    assert music_assistant_client.send_command.call_args == call(
+        "music/recommendations",
+        require_schema=101,
+        user={"provider": "homeassistant", "user_id": user.id, "required": False},
+    )
+    assert response == snapshot

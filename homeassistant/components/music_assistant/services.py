@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING
 
 from music_assistant_models.enums import MediaType, QueueOption
+from music_assistant_models.media_items import BrowseFolder
 import probatio
 
 from homeassistant.components.media_player import (
@@ -11,7 +12,7 @@ from homeassistant.components.media_player import (
     MediaPlayerDeviceClass,
 )
 from homeassistant.components.tts import DOMAIN as TTS_DOMAIN
-from homeassistant.const import ATTR_CONFIG_ENTRY_ID
+from homeassistant.const import ATTR_CONFIG_ENTRY_ID, ATTR_NAME
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
@@ -46,6 +47,7 @@ from .const import (
     ATTR_PRE_ANNOUNCE_URL,
     ATTR_RADIO,
     ATTR_RADIO_MODE,
+    ATTR_RECOMMENDATIONS,
     ATTR_SEARCH,
     ATTR_SEARCH_ALBUM,
     ATTR_SEARCH_ARTIST,
@@ -59,9 +61,15 @@ from .const import (
     ATTR_USERNAME,
     DOMAIN,
 )
-from .helpers import catch_user_not_found, get_music_assistant_client, user_from_context
+from .helpers import (
+    acting_user,
+    catch_user_not_found,
+    get_music_assistant_client,
+    user_from_context,
+)
 from .schemas import (
     LIBRARY_RESULTS_SCHEMA,
+    RECOMMENDATIONS_SCHEMA,
     SEARCH_RESULT_SCHEMA,
     media_item_dict_from_mass_item,
 )
@@ -83,6 +91,7 @@ SERVICE_PLAY_MEDIA_ADVANCED = "play_media"
 SERVICE_PLAY_ANNOUNCEMENT = "play_announcement"
 SERVICE_TRANSFER_QUEUE = "transfer_queue"
 SERVICE_GET_QUEUE = "get_queue"
+SERVICE_GET_RECOMMENDATIONS = "get_recommendations"
 
 DEFAULT_OFFSET = 0
 DEFAULT_LIMIT = 25
@@ -130,6 +139,19 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 probatio.Optional(ATTR_ORDER_BY): cv.string,
                 probatio.Optional(ATTR_ALBUM_TYPE): list[MediaType],
                 probatio.Optional(ATTR_ALBUM_ARTISTS_ONLY): cv.boolean,
+                probatio.Optional(ATTR_USERNAME): cv.string,
+            }
+        ),
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_RECOMMENDATIONS,
+        handle_get_recommendations,
+        schema=probatio.Schema(
+            {
+                probatio.Required(ATTR_CONFIG_ENTRY_ID): str,
                 probatio.Optional(ATTR_USERNAME): cv.string,
             }
         ),
@@ -335,6 +357,33 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
             ATTR_OFFSET: offset,
             ATTR_ORDER_BY: order_by,
             ATTR_MEDIA_TYPE: media_type,
+        }
+    )
+    return response
+
+
+async def handle_get_recommendations(call: ServiceCall) -> ServiceResponse:
+    """Handle get_recommendations action."""
+    mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    username = call.data.get(ATTR_USERNAME)
+    with catch_user_not_found(username):
+        folders = await mass.music.recommendations(
+            user=acting_user(mass, username, call.context)
+        )
+    response: ServiceResponse = RECOMMENDATIONS_SCHEMA(
+        {
+            ATTR_RECOMMENDATIONS: [
+                {
+                    ATTR_NAME: folder.name,
+                    ATTR_ITEMS: [
+                        media_item_dict_from_mass_item(mass, item)
+                        for item in folder.items
+                        # nested folders are browse paths, not playable items
+                        if not isinstance(item, BrowseFolder)
+                    ],
+                }
+                for folder in folders
+            ]
         }
     )
     return response

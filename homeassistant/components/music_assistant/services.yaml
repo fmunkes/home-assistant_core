@@ -295,3 +295,15 @@ get_library:
       example: "john"
       selector:
         text:
+
+get_recommendations:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: music_assistant
+    username:
+      example: "john"
+      selector:
+        text:

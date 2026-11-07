@@ -42,6 +42,7 @@ from .const import (
     ATTR_QUEUE_ITEM_ID,
     ATTR_QUEUE_ITEMS,
     ATTR_RADIO,
+    ATTR_RECOMMENDATIONS,
     ATTR_REPEAT_MODE,
     ATTR_SAMPLE_RATE,
     ATTR_SHUFFLE_ENABLED,
@@ -225,5 +226,19 @@ QUEUE_DETAILS_SCHEMA = probatio.Schema(
         probatio.Required(ATTR_CURRENT_ITEM): probatio.Any(None, QUEUE_ITEM_SCHEMA),
         probatio.Required(ATTR_NEXT_ITEM): probatio.Any(None, QUEUE_ITEM_SCHEMA),
         probatio.Optional(ATTR_QUEUE_ITEMS): [QUEUE_ITEM_SCHEMA],
+    }
+)
+
+
+RECOMMENDATIONS_SCHEMA = probatio.Schema(
+    {
+        probatio.Required(ATTR_RECOMMENDATIONS): [
+            probatio.Schema(
+                {
+                    probatio.Required(ATTR_NAME): cv.string,
+                    probatio.Required(ATTR_ITEMS): [MEDIA_ITEM_SCHEMA],
+                }
+            )
+        ],
     }
 )

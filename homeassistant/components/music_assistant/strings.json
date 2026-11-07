@@ -466,6 +466,20 @@
       },
       "name": "Get playerQueue details"
     },
+    "get_recommendations": {
+      "description": "Retrieves the recommendations of Music Assistant, such as recently played items and favorites, grouped in rows.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Select the Music Assistant instance to use.",
+          "name": "[%key:component::music_assistant::services::search::fields::config_entry_id::name%]"
+        },
+        "username": {
+          "description": "Music Assistant username to run this action as.",
+          "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
+        }
+      },
+      "name": "Get recommendations"
+    },
     "play_announcement": {
       "description": "Plays an announcement on a Music Assistant player with more fine-grained control options.",
       "fields": {
