@@ -2,7 +2,6 @@
 
 from typing import TYPE_CHECKING
 
-from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_models.enums import MediaType, QueueOption
 from music_assistant_models.media_items import Track
 import probatio
@@ -65,6 +64,7 @@ from .const import (
 )
 from .helpers import (
     acting_user,
+    catch_musicassistant_error,
     catch_user_not_found,
     get_music_assistant_client,
     user_from_context,
@@ -364,6 +364,7 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
     return response
 
 
+@catch_musicassistant_error
 async def handle_get_lyrics(call: ServiceCall) -> ServiceResponse:
     """Handle get_lyrics action."""
     mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
@@ -378,13 +379,7 @@ async def handle_get_lyrics(call: ServiceCall) -> ServiceResponse:
                 translation_key="not_a_track",
                 translation_placeholders={"media_id": media_id},
             )
-        try:
-            lyrics, lrc_lyrics = await mass.metadata.get_track_lyrics(track, user=user)
-        except InvalidServerVersion as err:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="server_too_old",
-            ) from err
+        lyrics, lrc_lyrics = await mass.metadata.get_track_lyrics(track, user=user)
     response: ServiceResponse = LYRICS_SCHEMA(
         {ATTR_LYRICS: lyrics, ATTR_LRC_LYRICS: lrc_lyrics}
     )

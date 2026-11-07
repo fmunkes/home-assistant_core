@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, call
 
+from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_client.helpers import LinkedUser
 from music_assistant_client.metadata import Metadata
 from music_assistant_models.auth import AuthProviderType
@@ -392,3 +393,33 @@ async def test_get_lyrics_action(
             return_response=True,
         )
     assert err.value.translation_key == "not_a_track"
+
+
+async def test_get_lyrics_action_older_server(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test get_lyrics sends no user to an older server and reports it."""
+    music_assistant_client.server_info.schema_version = 100
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.metadata = Metadata(music_assistant_client)
+    track = Track(
+        item_id="track_1", provider="library", name="Track 1", provider_mappings=set()
+    )
+    music_assistant_client.music.get_item_by_uri = AsyncMock(return_value=track)
+    # the real send_command refuses the command on servers older than schema 101
+    music_assistant_client.send_command.side_effect = InvalidServerVersion(
+        "Command requires schema 101"
+    )
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_GET_LYRICS,
+            {ATTR_CONFIG_ENTRY_ID: entry.entry_id, ATTR_MEDIA_ID: track.uri},
+            blocking=True,
+            return_response=True,
+        )
+    assert err.value.translation_key == "server_too_old"
+    assert music_assistant_client.music.get_item_by_uri.call_args == call(
+        track.uri, user=None
+    )
