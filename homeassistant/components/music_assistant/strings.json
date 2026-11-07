@@ -329,14 +329,20 @@
     "invalid_username": {
       "message": "The username {username} does not exist on the Music Assistant server."
     },
+    "no_active_queue": {
+      "message": "The player has no active queue."
+    },
     "playlist_not_in_library": {
       "message": "{playlist} is not a playlist in the Music Assistant library. Use the URI of a library playlist, starting with library://playlist/."
+    },
+    "server_too_old": {
+      "message": "This action requires Music Assistant server version 2.11 or later."
     },
     "tts_entity_not_available": {
       "message": "The text-to-speech entity {entity_id} is not available."
     },
     "username_not_supported": {
-      "message": "The Music Assistant server is too old to run this action as a given user. Update Music Assistant or remove the username."
+      "message": "Running this action as a given user requires Music Assistant server version 2.11 or later."
     }
   },
   "issues": {
@@ -401,7 +407,7 @@
   },
   "services": {
     "add_to_playlist": {
-      "description": "Adds items to a playlist in the Music Assistant library.",
+      "description": "Adds items to a playlist in the Music Assistant library. The items are added in the background, so errors while adding them are not reported back.",
       "fields": {
         "config_entry_id": {
           "description": "Select the Music Assistant instance the playlist is in.",
@@ -416,7 +422,7 @@
           "name": "Playlist"
         },
         "username": {
-          "description": "Music Assistant username to edit the playlist as. Only playlists this user may edit can be changed.",
+          "description": "Music Assistant username to edit the playlist as. Only playlists this user may edit can be changed. Defaults to the Music Assistant user linked to the Home Assistant user making the request.",
           "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
         }
       },
@@ -485,7 +491,7 @@
           "name": "[%key:component::music_assistant::services::get_library::fields::offset::name%]"
         },
         "username": {
-          "description": "Music Assistant username used to request the queue items. They are only returned when this user may access the player.",
+          "description": "Music Assistant username used to request the queue items. The request fails when this user may not access the player. Defaults to the Music Assistant user linked to the Home Assistant user making the request.",
           "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
         }
       },

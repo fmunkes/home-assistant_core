@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, call
 from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.enums import MediaType
-from music_assistant_models.errors import UserNotFoundError
+from music_assistant_models.errors import MediaNotFoundError, UserNotFoundError
 from music_assistant_models.media_items import SearchResults
 import pytest
 from pytest_homeassistant.common import MockConfigEntry, MockUser
@@ -29,7 +29,7 @@ from homeassistant.components.music_assistant.services import (
 )
 from homeassistant.const import ATTR_CONFIG_ENTRY_ID
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from .common import create_library_albums_from_fixture, setup_integration_from_fixtures
 
@@ -444,3 +444,27 @@ async def test_remove_from_playlist_action(
         require_schema=101,
         user={"provider": "homeassistant", "user_id": user.id, "required": False},
     )
+
+
+async def test_add_to_playlist_action_older_server_error(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test add_to_playlist sends no user to an older server and converts its errors."""
+    music_assistant_client.server_info.schema_version = 100
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.send_command.side_effect = MediaNotFoundError(
+        "Playlist 999 not found"
+    )
+    with pytest.raises(HomeAssistantError, match="Playlist 999 not found"):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_ADD_TO_PLAYLIST,
+            {
+                ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+                ATTR_PLAYLIST: "library://playlist/999",
+                ATTR_MEDIA_ID: "library://track/5",
+            },
+            blocking=True,
+        )
+    assert "user" not in music_assistant_client.send_command.call_args.kwargs
