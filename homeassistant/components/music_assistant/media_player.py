@@ -737,6 +737,20 @@ class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
         )
         return response
 
+    @catch_musicassistant_error
+    async def _async_handle_skip_seconds(
+        self, seconds: int, username: str | None = None
+    ) -> None:
+        """Skip forward or back within the playing item."""
+        if not self.active_queue:
+            raise HomeAssistantError("No active queue found")
+        with catch_user_not_found(username):
+            await self.mass.player_queues.skip(
+                self.active_queue.queue_id,
+                seconds,
+                user=acting_user(self.mass, username, self._context),
+            )
+
     @override
     async def async_browse_media(
         self,

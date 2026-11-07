@@ -577,6 +577,20 @@
         }
       }
     },
+    "skip_seconds": {
+      "description": "Skips forward or back within the item that a Music Assistant player is playing.",
+      "fields": {
+        "seconds": {
+          "description": "Number of seconds to skip, negative to skip back.",
+          "name": "Seconds"
+        },
+        "username": {
+          "description": "Music Assistant username to run this action as.",
+          "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
+        }
+      },
+      "name": "Skip seconds"
+    },
     "transfer_queue": {
       "description": "Transfers a player's queue to another player.",
       "fields": {

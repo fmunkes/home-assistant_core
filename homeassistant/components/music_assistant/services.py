@@ -11,7 +11,7 @@ from homeassistant.components.media_player import (
     MediaPlayerDeviceClass,
 )
 from homeassistant.components.tts import DOMAIN as TTS_DOMAIN
-from homeassistant.const import ATTR_CONFIG_ENTRY_ID
+from homeassistant.const import ATTR_CONFIG_ENTRY_ID, ATTR_SECONDS
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
@@ -83,6 +83,7 @@ SERVICE_PLAY_MEDIA_ADVANCED = "play_media"
 SERVICE_PLAY_ANNOUNCEMENT = "play_announcement"
 SERVICE_TRANSFER_QUEUE = "transfer_queue"
 SERVICE_GET_QUEUE = "get_queue"
+SERVICE_SKIP_SECONDS = "skip_seconds"
 
 DEFAULT_OFFSET = 0
 DEFAULT_LIMIT = 25
@@ -206,6 +207,18 @@ def async_setup_services(hass: HomeAssistant) -> None:
         },
         func="_async_handle_get_queue",
         supports_response=SupportsResponse.ONLY,
+    )
+    service.async_register_platform_entity_service(
+        hass,
+        DOMAIN,
+        SERVICE_SKIP_SECONDS,
+        entity_domain=MEDIA_PLAYER_DOMAIN,
+        entity_device_classes=PLAYER_ENTITY_DEVICE_CLASSES,
+        schema={
+            probatio.Required(ATTR_SECONDS): int,
+            probatio.Optional(ATTR_USERNAME): cv.string,
+        },
+        func="_async_handle_skip_seconds",
     )
 
 

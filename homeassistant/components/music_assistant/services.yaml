@@ -295,3 +295,27 @@ get_library:
       example: "john"
       selector:
         text:
+
+skip_seconds:
+  target:
+    entity:
+      domain: media_player
+      integration: music_assistant
+      device_class: speaker
+      supported_features:
+        - media_player.MediaPlayerEntityFeature.PLAY_MEDIA
+  fields:
+    seconds:
+      required: true
+      example: 30
+      selector:
+        number:
+          min: -3600
+          max: 3600
+          step: 1
+          mode: box
+          unit_of_measurement: s
+    username:
+      example: "john"
+      selector:
+        text:
