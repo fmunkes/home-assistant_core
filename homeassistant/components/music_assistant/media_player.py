@@ -745,7 +745,9 @@ class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
     ) -> None:
         """Play an item of the active queue."""
         if not self.active_queue:
-            raise HomeAssistantError("No active queue found")
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="no_active_queue"
+            )
         with catch_user_not_found(username):
             await self.mass.player_queues.play_index(
                 self.active_queue.queue_id,
