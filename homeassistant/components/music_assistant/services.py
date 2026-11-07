@@ -190,6 +190,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
         schema={
             probatio.Optional(ATTR_SOURCE_PLAYER): cv.entity_id,
             probatio.Optional(ATTR_AUTO_PLAY): probatio.Coerce(bool),
+            probatio.Optional(ATTR_USERNAME): cv.string,
         },
         func="_async_handle_transfer_queue",
     )

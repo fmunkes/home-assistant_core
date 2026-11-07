@@ -587,6 +587,10 @@
         "source_player": {
           "description": "The source media player which has the queue you want to transfer. When omitted, the first playing player will be used.",
           "name": "Source media player"
+        },
+        "username": {
+          "description": "Music Assistant username to transfer the queue as. The transfer only happens when this user may access both players.",
+          "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
         }
       },
       "name": "Transfer queue"
