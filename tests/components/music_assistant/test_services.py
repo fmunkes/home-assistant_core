@@ -6,7 +6,7 @@ from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.enums import MediaType
-from music_assistant_models.errors import UserNotFoundError
+from music_assistant_models.errors import MediaNotFoundError, UserNotFoundError
 from music_assistant_models.media_items import (
     Audiobook,
     MediaCollection,
@@ -35,7 +35,7 @@ from homeassistant.components.music_assistant.services import (
 )
 from homeassistant.const import ATTR_CONFIG_ENTRY_ID
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from .common import create_library_albums_from_fixture, setup_integration_from_fixtures
 
@@ -412,14 +412,6 @@ async def test_get_item_contents_action_collection(
     entry = await setup_integration_from_fixtures(hass, music_assistant_client)
     music = music_assistant_client.music
     collection_id = "audiobook___Book series"
-    music.get_item_by_uri = AsyncMock(
-        return_value=MediaCollection[Audiobook](
-            item_id=collection_id,
-            provider="library",
-            name="Book series",
-            provider_mappings=set(),
-        )
-    )
     music.get_audiobook_collection = AsyncMock(
         return_value=MediaCollection[Audiobook](
             item_id=collection_id,
@@ -449,6 +441,8 @@ async def test_get_item_contents_action_collection(
     assert music.get_audiobook_collection.call_args == call(
         collection_id, limit=25, offset=0, user=None
     )
+    # the collection item would carry all of its items, so it isn't fetched
+    music.get_item_by_uri.assert_not_called()
     assert [item["name"] for item in response["items"]] == ["Book 1"]
 
 
@@ -477,12 +471,23 @@ async def test_get_item_contents_action_collection(
             "server_too_old",
             id="older_server",
         ),
+        pytest.param(
+            MediaCollection[Track](
+                item_id="unknown___Mix",
+                provider="library",
+                name="Mix",
+                provider_mappings=set(),
+            ),
+            None,
+            "item_has_no_contents",
+            id="unknown_collection",
+        ),
     ],
 )
 async def test_get_item_contents_action_errors(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
-    item: Track | Playlist,
+    item: Track | Playlist | MediaCollection[Track],
     contents_error: Exception | None,
     expected_error: str,
 ) -> None:
@@ -501,3 +506,29 @@ async def test_get_item_contents_action_errors(
             return_response=True,
         )
     assert err.value.translation_key == expected_error
+
+
+async def test_get_item_contents_action_older_server_error(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test get_item_contents sends no user to an older server and converts errors."""
+    music_assistant_client.server_info.schema_version = 100
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.music.get_item_by_uri = AsyncMock(
+        side_effect=MediaNotFoundError("Album 999 not found")
+    )
+    with pytest.raises(HomeAssistantError, match="Album 999 not found"):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_GET_ITEM_CONTENTS,
+            {
+                ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+                ATTR_MEDIA_ID: "library://album/999",
+            },
+            blocking=True,
+            return_response=True,
+        )
+    assert music_assistant_client.music.get_item_by_uri.call_args == call(
+        "library://album/999", user=None
+    )

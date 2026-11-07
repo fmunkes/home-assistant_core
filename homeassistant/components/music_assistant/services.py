@@ -3,7 +3,6 @@
 from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
-from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_models.enums import MediaType, QueueOption
 import probatio
 
@@ -65,6 +64,7 @@ from .const import (
 )
 from .helpers import (
     acting_user,
+    catch_musicassistant_error,
     catch_user_not_found,
     get_music_assistant_client,
     user_from_context,
@@ -377,17 +377,47 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
     return response
 
 
+@catch_musicassistant_error
 async def handle_get_item_contents(call: ServiceCall) -> ServiceResponse:
     """Handle get_item_contents action."""
     mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
     username = call.data.get(ATTR_USERNAME)
     limit = call.data[ATTR_LIMIT]
     offset = call.data[ATTR_OFFSET]
+    media_uri = call.data[ATTR_MEDIA_ID]
+    collection_marker = f"://{MediaType.COLLECTION.value}/"
     contents: Sequence[MediaItemType]
     with catch_user_not_found(username):
         user = acting_user(mass, username, call.context)
-        item = await mass.music.get_item_by_uri(call.data[ATTR_MEDIA_ID], user=user)
-        try:
+        # a collection is paged directly, its item carries all of its items
+        if collection_marker in media_uri:
+            collection_id = media_uri.split(collection_marker, 1)[1]
+            # the collection's item id starts with the media type of its items
+            items_media_type = collection_id.split(COLLECTION_ITEM_ID_SEPARATOR)[0]
+            collection_getters: dict[
+                str, Callable[..., Awaitable[MediaCollection[Any]]]
+            ] = {
+                MediaType.ALBUM: mass.music.get_album_collection,
+                MediaType.ARTIST: mass.music.get_artist_collection,
+                MediaType.AUDIOBOOK: mass.music.get_audiobook_collection,
+                MediaType.GENRE: mass.music.get_genre_collection,
+                MediaType.PLAYLIST: mass.music.get_playlist_collection,
+                MediaType.PODCAST: mass.music.get_podcast_collection,
+                MediaType.RADIO: mass.music.get_radio_collection,
+                MediaType.TRACK: mass.music.get_track_collection,
+            }
+            if not (get_collection := collection_getters.get(items_media_type.lower())):
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="item_has_no_contents",
+                    translation_placeholders={"media_type": items_media_type},
+                )
+            collection = await get_collection(
+                collection_id, limit=limit, offset=offset, user=user
+            )
+            contents = collection.items
+        else:
+            item = await mass.music.get_item_by_uri(media_uri, user=user)
             if item.media_type is MediaType.ALBUM:
                 contents = await mass.music.get_album_tracks(
                     item.item_id, item.provider, limit=limit, offset=offset, user=user
@@ -409,37 +439,12 @@ async def handle_get_item_contents(call: ServiceCall) -> ServiceResponse:
                 contents = await mass.music.get_podcast_episodes(
                     item.item_id, item.provider, limit=limit, offset=offset, user=user
                 )
-            elif item.media_type is MediaType.COLLECTION:
-                # the collection's item id starts with the media type of its items
-                items_media_type = item.item_id.split(COLLECTION_ITEM_ID_SEPARATOR)[0]
-                collection_getters: dict[
-                    MediaType, Callable[..., Awaitable[MediaCollection[Any]]]
-                ] = {
-                    MediaType.ALBUM: mass.music.get_album_collection,
-                    MediaType.ARTIST: mass.music.get_artist_collection,
-                    MediaType.AUDIOBOOK: mass.music.get_audiobook_collection,
-                    MediaType.GENRE: mass.music.get_genre_collection,
-                    MediaType.PLAYLIST: mass.music.get_playlist_collection,
-                    MediaType.PODCAST: mass.music.get_podcast_collection,
-                    MediaType.RADIO: mass.music.get_radio_collection,
-                    MediaType.TRACK: mass.music.get_track_collection,
-                }
-                get_collection = collection_getters[MediaType(items_media_type)]
-                collection = await get_collection(
-                    item.item_id, limit=limit, offset=offset, user=user
-                )
-                contents = collection.items
             else:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="item_has_no_contents",
                     translation_placeholders={"media_type": item.media_type.value},
                 )
-        except InvalidServerVersion as err:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="server_too_old",
-            ) from err
     response: ServiceResponse = ITEM_CONTENTS_SCHEMA(
         {
             ATTR_ITEMS: [
