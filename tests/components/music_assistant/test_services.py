@@ -6,23 +6,25 @@ from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.enums import MediaType
 from music_assistant_models.errors import UserNotFoundError
-from music_assistant_models.media_items import SearchResults
+from music_assistant_models.media_items import Playlist, SearchResults
 import pytest
-from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry, MockUser
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.music_assistant.const import (
     ATTR_FAVORITE,
     ATTR_MEDIA_TYPE,
+    ATTR_PROVIDER,
     ATTR_SEARCH_NAME,
     ATTR_USERNAME,
     DOMAIN,
 )
 from homeassistant.components.music_assistant.services import (
+    SERVICE_CREATE_PLAYLIST,
     SERVICE_GET_LIBRARY,
     SERVICE_SEARCH,
 )
-from homeassistant.const import ATTR_CONFIG_ENTRY_ID
+from homeassistant.const import ATTR_CONFIG_ENTRY_ID, ATTR_NAME
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 
@@ -343,3 +345,42 @@ async def test_get_library_action_with_unknown_username(
         )
     assert err.value.translation_key == "invalid_username"
     assert err.value.translation_placeholders == {"username": "nobody"}
+
+
+async def test_create_playlist_action(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Test create_playlist creates the playlist as the calling user and returns it."""
+    music_assistant_client.server_info.schema_version = 101
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.send_command.return_value = Playlist(
+        item_id="playlist_1",
+        provider="library",
+        name="Party mix",
+        provider_mappings=set(),
+    ).to_dict()
+    user = MockUser(is_owner=True).add_to_hass(hass)
+    response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_CREATE_PLAYLIST,
+        {
+            ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+            ATTR_NAME: "Party mix",
+            ATTR_PROVIDER: "builtin",
+        },
+        blocking=True,
+        return_response=True,
+        context=Context(user_id=user.id),
+    )
+    assert music_assistant_client.send_command.call_args == call(
+        "music/playlists/create_playlist",
+        name="Party mix",
+        provider_instance_or_domain="builtin",
+        media_types=None,
+        strict_provider_instance=None,
+        require_schema=101,
+        user={"provider": "homeassistant", "user_id": user.id, "required": False},
+    )
+    assert response == snapshot

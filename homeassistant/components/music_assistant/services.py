@@ -11,7 +11,7 @@ from homeassistant.components.media_player import (
     MediaPlayerDeviceClass,
 )
 from homeassistant.components.tts import DOMAIN as TTS_DOMAIN
-from homeassistant.const import ATTR_CONFIG_ENTRY_ID
+from homeassistant.const import ATTR_CONFIG_ENTRY_ID, ATTR_NAME
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
@@ -44,6 +44,7 @@ from .const import (
     ATTR_PLAYLISTS,
     ATTR_PODCASTS,
     ATTR_PRE_ANNOUNCE_URL,
+    ATTR_PROVIDER,
     ATTR_RADIO,
     ATTR_RADIO_MODE,
     ATTR_SEARCH,
@@ -59,9 +60,15 @@ from .const import (
     ATTR_USERNAME,
     DOMAIN,
 )
-from .helpers import catch_user_not_found, get_music_assistant_client, user_from_context
+from .helpers import (
+    acting_user,
+    catch_user_not_found,
+    get_music_assistant_client,
+    user_from_context,
+)
 from .schemas import (
     LIBRARY_RESULTS_SCHEMA,
+    MEDIA_ITEM_SCHEMA,
     SEARCH_RESULT_SCHEMA,
     media_item_dict_from_mass_item,
 )
@@ -83,6 +90,7 @@ SERVICE_PLAY_MEDIA_ADVANCED = "play_media"
 SERVICE_PLAY_ANNOUNCEMENT = "play_announcement"
 SERVICE_TRANSFER_QUEUE = "transfer_queue"
 SERVICE_GET_QUEUE = "get_queue"
+SERVICE_CREATE_PLAYLIST = "create_playlist"
 
 DEFAULT_OFFSET = 0
 DEFAULT_LIMIT = 25
@@ -134,6 +142,20 @@ def async_setup_services(hass: HomeAssistant) -> None:
             }
         ),
         supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CREATE_PLAYLIST,
+        handle_create_playlist,
+        schema=probatio.Schema(
+            {
+                probatio.Required(ATTR_CONFIG_ENTRY_ID): str,
+                probatio.Required(ATTR_NAME): cv.string,
+                probatio.Optional(ATTR_PROVIDER): cv.string,
+                probatio.Optional(ATTR_USERNAME): cv.string,
+            }
+        ),
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
     # Platform entity services
@@ -336,5 +358,21 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
             ATTR_ORDER_BY: order_by,
             ATTR_MEDIA_TYPE: media_type,
         }
+    )
+    return response
+
+
+async def handle_create_playlist(call: ServiceCall) -> ServiceResponse:
+    """Handle create_playlist action."""
+    mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    username = call.data.get(ATTR_USERNAME)
+    with catch_user_not_found(username):
+        playlist = await mass.music.create_playlist(
+            call.data[ATTR_NAME],
+            call.data.get(ATTR_PROVIDER),
+            user=acting_user(mass, username, call.context),
+        )
+    response: ServiceResponse = MEDIA_ITEM_SCHEMA(
+        media_item_dict_from_mass_item(mass, playlist)
     )
     return response

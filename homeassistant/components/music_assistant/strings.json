@@ -397,6 +397,28 @@
     }
   },
   "services": {
+    "create_playlist": {
+      "description": "Creates a new playlist in Music Assistant.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Select the Music Assistant instance to create the playlist in.",
+          "name": "[%key:component::music_assistant::services::search::fields::config_entry_id::name%]"
+        },
+        "name": {
+          "description": "Name of the new playlist.",
+          "name": "Playlist name"
+        },
+        "provider": {
+          "description": "Music Assistant provider instance or domain to create the playlist in. Leave empty to create it in the Music Assistant library.",
+          "name": "Provider"
+        },
+        "username": {
+          "description": "Music Assistant username to create the playlist as. The playlist belongs to this user.",
+          "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
+        }
+      },
+      "name": "Create playlist"
+    },
     "get_library": {
       "description": "Retrieves items from a Music Assistant library.",
       "fields": {
