@@ -119,6 +119,29 @@ transfer_queue:
       selector:
         boolean:
 
+add_to_playlist:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: music_assistant
+    playlist:
+      required: true
+      example: "library://playlist/12"
+      selector:
+        text:
+    media_id:
+      required: true
+      example: "spotify://track/1234"
+      selector:
+        text:
+          multiple: true
+    username:
+      example: "john"
+      selector:
+        text:
+
 get_queue:
   target:
     entity:

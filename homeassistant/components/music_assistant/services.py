@@ -41,6 +41,7 @@ from .const import (
     ATTR_MESSAGE,
     ATTR_OFFSET,
     ATTR_ORDER_BY,
+    ATTR_PLAYLIST,
     ATTR_PLAYLISTS,
     ATTR_PODCASTS,
     ATTR_PRE_ANNOUNCE_URL,
@@ -59,7 +60,12 @@ from .const import (
     ATTR_USERNAME,
     DOMAIN,
 )
-from .helpers import catch_user_not_found, get_music_assistant_client, user_from_context
+from .helpers import (
+    acting_user,
+    catch_user_not_found,
+    get_music_assistant_client,
+    user_from_context,
+)
 from .schemas import (
     LIBRARY_RESULTS_SCHEMA,
     SEARCH_RESULT_SCHEMA,
@@ -83,6 +89,7 @@ SERVICE_PLAY_MEDIA_ADVANCED = "play_media"
 SERVICE_PLAY_ANNOUNCEMENT = "play_announcement"
 SERVICE_TRANSFER_QUEUE = "transfer_queue"
 SERVICE_GET_QUEUE = "get_queue"
+SERVICE_ADD_TO_PLAYLIST = "add_to_playlist"
 
 DEFAULT_OFFSET = 0
 DEFAULT_LIMIT = 25
@@ -134,6 +141,21 @@ def async_setup_services(hass: HomeAssistant) -> None:
             }
         ),
         supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ADD_TO_PLAYLIST,
+        handle_add_to_playlist,
+        schema=probatio.Schema(
+            {
+                probatio.Required(ATTR_CONFIG_ENTRY_ID): str,
+                probatio.Required(ATTR_PLAYLIST): cv.string,
+                probatio.Required(ATTR_MEDIA_ID): probatio.All(
+                    probatio.EnsureList(), [cv.string]
+                ),
+                probatio.Optional(ATTR_USERNAME): cv.string,
+            }
+        ),
     )
 
     # Platform entity services
@@ -338,3 +360,24 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
         }
     )
     return response
+
+
+async def handle_add_to_playlist(call: ServiceCall) -> None:
+    """Handle add_to_playlist action."""
+    mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    playlist_uri = call.data[ATTR_PLAYLIST]
+    library_prefix = f"library://{MediaType.PLAYLIST.value}/"
+    # the server only edits playlists in the library, which it addresses by library id
+    if not playlist_uri.startswith(library_prefix):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="playlist_not_in_library",
+            translation_placeholders={"playlist": playlist_uri},
+        )
+    username = call.data.get(ATTR_USERNAME)
+    with catch_user_not_found(username):
+        await mass.music.add_playlist_tracks(
+            playlist_uri.removeprefix(library_prefix),
+            call.data[ATTR_MEDIA_ID],
+            user=acting_user(mass, username, call.context),
+        )

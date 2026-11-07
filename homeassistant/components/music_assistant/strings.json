@@ -329,6 +329,9 @@
     "invalid_username": {
       "message": "The username {username} does not exist on the Music Assistant server."
     },
+    "playlist_not_in_library": {
+      "message": "{playlist} is not a playlist in the Music Assistant library. Use the URI of a library playlist, starting with library://playlist/."
+    },
     "tts_entity_not_available": {
       "message": "The text-to-speech entity {entity_id} is not available."
     },
@@ -397,6 +400,28 @@
     }
   },
   "services": {
+    "add_to_playlist": {
+      "description": "Adds items to a playlist in the Music Assistant library.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Select the Music Assistant instance the playlist is in.",
+          "name": "[%key:component::music_assistant::services::search::fields::config_entry_id::name%]"
+        },
+        "media_id": {
+          "description": "URI or URIs of the items to add, for example from the search or get library items actions.",
+          "name": "Media URI"
+        },
+        "playlist": {
+          "description": "URI of a playlist in the Music Assistant library, for example from the get library items action.",
+          "name": "Playlist"
+        },
+        "username": {
+          "description": "Music Assistant username to edit the playlist as. Only playlists this user may edit can be changed.",
+          "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
+        }
+      },
+      "name": "Add to playlist"
+    },
     "get_library": {
       "description": "Retrieves items from a Music Assistant library.",
       "fields": {
