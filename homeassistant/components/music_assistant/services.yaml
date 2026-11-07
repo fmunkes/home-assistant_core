@@ -118,6 +118,10 @@ transfer_queue:
       example: "true"
       selector:
         boolean:
+    username:
+      example: "john"
+      selector:
+        text:
 
 get_queue:
   target:

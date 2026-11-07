@@ -671,7 +671,10 @@ class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
 
     @catch_musicassistant_error
     async def _async_handle_transfer_queue(
-        self, source_player: str | None = None, auto_play: bool | None = None
+        self,
+        source_player: str | None = None,
+        auto_play: bool | None = None,
+        username: str | None = None,
     ) -> None:
         """Transfer the current queue to another player."""
         if not source_player:
@@ -691,9 +694,14 @@ class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
                 raise HomeAssistantError("Source player not available.")
             source_queue_id = entity.unique_id  # unique_id is the MA player_id
         target_queue_id = self.player_id
-        await self.mass.player_queues.transfer_queue(
-            source_queue_id, target_queue_id, auto_play
-        )
+        # only an explicit username, never the calling user, so existing calls stay as they are
+        with catch_user_not_found(username):
+            await self.mass.player_queues.transfer_queue(
+                source_queue_id,
+                target_queue_id,
+                auto_play,
+                user=acting_user(self.mass, username, None),
+            )
 
     @catch_musicassistant_error
     async def _async_handle_get_queue(
