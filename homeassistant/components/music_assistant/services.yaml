@@ -295,3 +295,45 @@ get_library:
       example: "john"
       selector:
         text:
+
+get_item_contents:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: music_assistant
+    media_id:
+      required: true
+      example: "library://album/12"
+      selector:
+        text:
+    media_type:
+      example: "track"
+      default: album
+      selector:
+        select:
+          translation_key: artist_contents
+          options:
+            - album
+            - track
+    limit:
+      example: 25
+      default: 25
+      selector:
+        number:
+          min: 1
+          max: 500
+          step: 1
+    offset:
+      example: 25
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 1000000
+          step: 1
+    username:
+      example: "john"
+      selector:
+        text:

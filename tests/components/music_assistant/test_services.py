@@ -2,23 +2,28 @@
 
 from unittest.mock import AsyncMock, MagicMock, call
 
+from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.enums import MediaType
 from music_assistant_models.errors import UserNotFoundError
-from music_assistant_models.media_items import SearchResults
+from music_assistant_models.media_items import Playlist, SearchResults, Track
 import pytest
-from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry, MockUser
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.music_assistant.const import (
     ATTR_FAVORITE,
+    ATTR_LIMIT,
+    ATTR_MEDIA_ID,
     ATTR_MEDIA_TYPE,
+    ATTR_OFFSET,
     ATTR_SEARCH_NAME,
     ATTR_USERNAME,
     DOMAIN,
 )
 from homeassistant.components.music_assistant.services import (
+    SERVICE_GET_ITEM_CONTENTS,
     SERVICE_GET_LIBRARY,
     SERVICE_SEARCH,
 )
@@ -343,3 +348,102 @@ async def test_get_library_action_with_unknown_username(
         )
     assert err.value.translation_key == "invalid_username"
     assert err.value.translation_placeholders == {"username": "nobody"}
+
+
+async def test_get_item_contents_action(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Test get_item_contents lists a playlist with positions as the calling user."""
+    music_assistant_client.server_info.schema_version = 101
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music = music_assistant_client.music
+    music.get_item_by_uri = AsyncMock(
+        return_value=Playlist(
+            item_id="12", provider="library", name="Party mix", provider_mappings=set()
+        )
+    )
+    music.get_playlist_tracks = AsyncMock(
+        return_value=[
+            Track(
+                item_id="track_1",
+                provider="library",
+                name="Track 1",
+                provider_mappings=set(),
+                position=3,
+            )
+        ]
+    )
+    user = MockUser(is_owner=True).add_to_hass(hass)
+    response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_ITEM_CONTENTS,
+        {
+            ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+            ATTR_MEDIA_ID: "library://playlist/12",
+            ATTR_LIMIT: 10,
+            ATTR_OFFSET: 20,
+        },
+        blocking=True,
+        return_response=True,
+        context=Context(user_id=user.id),
+    )
+    calling_user = {"provider": "homeassistant", "user_id": user.id, "required": False}
+    assert music.get_playlist_tracks.call_args == call(
+        "12", "library", limit=10, offset=20, user=calling_user
+    )
+    # the position is what remove actions need to address a playlist item
+    assert response["items"][0]["position"] == 3
+    assert response == snapshot
+
+
+@pytest.mark.parametrize(
+    ("item", "contents_error", "expected_error"),
+    [
+        pytest.param(
+            Track(
+                item_id="track_1",
+                provider="library",
+                name="Track 1",
+                provider_mappings=set(),
+            ),
+            None,
+            "item_has_no_contents",
+            id="track",
+        ),
+        pytest.param(
+            Playlist(
+                item_id="12",
+                provider="library",
+                name="Party mix",
+                provider_mappings=set(),
+            ),
+            InvalidServerVersion("Paging needs schema 93"),
+            "server_too_old",
+            id="older_server",
+        ),
+    ],
+)
+async def test_get_item_contents_action_errors(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+    item: Track | Playlist,
+    contents_error: Exception | None,
+    expected_error: str,
+) -> None:
+    """Test get_item_contents refuses items without contents and too old servers."""
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.music.get_item_by_uri = AsyncMock(return_value=item)
+    music_assistant_client.music.get_playlist_tracks = AsyncMock(
+        side_effect=contents_error
+    )
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_GET_ITEM_CONTENTS,
+            {ATTR_CONFIG_ENTRY_ID: entry.entry_id, ATTR_MEDIA_ID: item.uri},
+            blocking=True,
+            return_response=True,
+        )
+    assert err.value.translation_key == expected_error

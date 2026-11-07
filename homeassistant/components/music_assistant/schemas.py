@@ -37,6 +37,7 @@ from .const import (
     ATTR_ORDER_BY,
     ATTR_PLAYLISTS,
     ATTR_PODCASTS,
+    ATTR_POSITION,
     ATTR_PROVIDER,
     ATTR_QUEUE_ID,
     ATTR_QUEUE_ITEM_ID,
@@ -225,5 +226,21 @@ QUEUE_DETAILS_SCHEMA = probatio.Schema(
         probatio.Required(ATTR_CURRENT_ITEM): probatio.Any(None, QUEUE_ITEM_SCHEMA),
         probatio.Required(ATTR_NEXT_ITEM): probatio.Any(None, QUEUE_ITEM_SCHEMA),
         probatio.Optional(ATTR_QUEUE_ITEMS): [QUEUE_ITEM_SCHEMA],
+    }
+)
+
+
+ITEM_CONTENTS_SCHEMA = probatio.Schema(
+    {
+        probatio.Required(ATTR_ITEMS): [
+            probatio.Schema(
+                {
+                    **MEDIA_ITEM_SCHEMA.schema,
+                    probatio.Optional(ATTR_POSITION): probatio.Any(None, int),
+                }
+            )
+        ],
+        probatio.Required(ATTR_LIMIT): int,
+        probatio.Required(ATTR_OFFSET): int,
     }
 )

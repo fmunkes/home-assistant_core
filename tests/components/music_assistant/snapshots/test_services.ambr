@@ -1,4 +1,22 @@
 # serializer version: 1
+# name: test_get_item_contents_action
+  dict({
+    'items': list([
+      dict({
+        'explicit': None,
+        'favorite': None,
+        'image': None,
+        'media_type': <MediaType.TRACK: 'track'>,
+        'name': 'Track 1',
+        'position': 3,
+        'uri': 'library://track/track_1',
+        'version': '',
+      }),
+    ]),
+    'limit': 10,
+    'offset': 20,
+  })
+# ---
 # name: test_get_library_action[album]
   dict({
     'items': list([

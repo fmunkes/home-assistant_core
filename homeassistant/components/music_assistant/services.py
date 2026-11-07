@@ -1,7 +1,9 @@
 """Custom actions (previously known as services) for the Music Assistant integration."""
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_models.enums import MediaType, QueueOption
 import probatio
 
@@ -43,6 +45,7 @@ from .const import (
     ATTR_ORDER_BY,
     ATTR_PLAYLISTS,
     ATTR_PODCASTS,
+    ATTR_POSITION,
     ATTR_PRE_ANNOUNCE_URL,
     ATTR_RADIO,
     ATTR_RADIO_MODE,
@@ -59,8 +62,14 @@ from .const import (
     ATTR_USERNAME,
     DOMAIN,
 )
-from .helpers import catch_user_not_found, get_music_assistant_client, user_from_context
+from .helpers import (
+    acting_user,
+    catch_user_not_found,
+    get_music_assistant_client,
+    user_from_context,
+)
 from .schemas import (
+    ITEM_CONTENTS_SCHEMA,
     LIBRARY_RESULTS_SCHEMA,
     SEARCH_RESULT_SCHEMA,
     media_item_dict_from_mass_item,
@@ -71,6 +80,7 @@ if TYPE_CHECKING:
         Album,
         Artist,
         Audiobook,
+        MediaItemType,
         Playlist,
         Podcast,
         Radio,
@@ -83,6 +93,7 @@ SERVICE_PLAY_MEDIA_ADVANCED = "play_media"
 SERVICE_PLAY_ANNOUNCEMENT = "play_announcement"
 SERVICE_TRANSFER_QUEUE = "transfer_queue"
 SERVICE_GET_QUEUE = "get_queue"
+SERVICE_GET_ITEM_CONTENTS = "get_item_contents"
 
 DEFAULT_OFFSET = 0
 DEFAULT_LIMIT = 25
@@ -130,6 +141,30 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 probatio.Optional(ATTR_ORDER_BY): cv.string,
                 probatio.Optional(ATTR_ALBUM_TYPE): list[MediaType],
                 probatio.Optional(ATTR_ALBUM_ARTISTS_ONLY): cv.boolean,
+                probatio.Optional(ATTR_USERNAME): cv.string,
+            }
+        ),
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_ITEM_CONTENTS,
+        handle_get_item_contents,
+        schema=probatio.Schema(
+            {
+                probatio.Required(ATTR_CONFIG_ENTRY_ID): str,
+                probatio.Required(ATTR_MEDIA_ID): cv.string,
+                probatio.Optional(
+                    ATTR_MEDIA_TYPE, default=MediaType.ALBUM
+                ): probatio.All(
+                    probatio.Coerce(MediaType),
+                    probatio.In([MediaType.ALBUM, MediaType.TRACK]),
+                ),
+                probatio.Optional(ATTR_LIMIT, default=DEFAULT_LIMIT): probatio.All(
+                    cv.positive_int, probatio.Range(min=1)
+                ),
+                probatio.Optional(ATTR_OFFSET, default=DEFAULT_OFFSET): cv.positive_int,
                 probatio.Optional(ATTR_USERNAME): cv.string,
             }
         ),
@@ -335,6 +370,65 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
             ATTR_OFFSET: offset,
             ATTR_ORDER_BY: order_by,
             ATTR_MEDIA_TYPE: media_type,
+        }
+    )
+    return response
+
+
+async def handle_get_item_contents(call: ServiceCall) -> ServiceResponse:
+    """Handle get_item_contents action."""
+    mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    username = call.data.get(ATTR_USERNAME)
+    limit = call.data[ATTR_LIMIT]
+    offset = call.data[ATTR_OFFSET]
+    contents: Sequence[MediaItemType]
+    with catch_user_not_found(username):
+        user = acting_user(mass, username, call.context)
+        item = await mass.music.get_item_by_uri(call.data[ATTR_MEDIA_ID], user=user)
+        try:
+            if item.media_type is MediaType.ALBUM:
+                contents = await mass.music.get_album_tracks(
+                    item.item_id, item.provider, limit=limit, offset=offset, user=user
+                )
+            elif item.media_type is MediaType.PLAYLIST:
+                contents = await mass.music.get_playlist_tracks(
+                    item.item_id, item.provider, limit=limit, offset=offset, user=user
+                )
+            elif item.media_type is MediaType.ARTIST:
+                get_artist_contents = (
+                    mass.music.get_artist_tracks
+                    if call.data[ATTR_MEDIA_TYPE] is MediaType.TRACK
+                    else mass.music.get_artist_albums
+                )
+                contents = await get_artist_contents(
+                    item.item_id, item.provider, limit=limit, offset=offset, user=user
+                )
+            elif item.media_type is MediaType.PODCAST:
+                contents = await mass.music.get_podcast_episodes(
+                    item.item_id, item.provider, limit=limit, offset=offset, user=user
+                )
+            else:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="item_has_no_contents",
+                    translation_placeholders={"media_type": item.media_type.value},
+                )
+        except InvalidServerVersion as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="server_too_old",
+            ) from err
+    response: ServiceResponse = ITEM_CONTENTS_SCHEMA(
+        {
+            ATTR_ITEMS: [
+                {
+                    **media_item_dict_from_mass_item(mass, entry),
+                    ATTR_POSITION: entry.position,
+                }
+                for entry in contents
+            ],
+            ATTR_LIMIT: limit,
+            ATTR_OFFSET: offset,
         }
     )
     return response
