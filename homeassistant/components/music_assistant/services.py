@@ -44,6 +44,7 @@ from .const import (
     ATTR_PLAYLISTS,
     ATTR_PODCASTS,
     ATTR_PRE_ANNOUNCE_URL,
+    ATTR_QUEUE_ITEM_ID,
     ATTR_RADIO,
     ATTR_RADIO_MODE,
     ATTR_SEARCH,
@@ -83,6 +84,7 @@ SERVICE_PLAY_MEDIA_ADVANCED = "play_media"
 SERVICE_PLAY_ANNOUNCEMENT = "play_announcement"
 SERVICE_TRANSFER_QUEUE = "transfer_queue"
 SERVICE_GET_QUEUE = "get_queue"
+SERVICE_PLAY_QUEUE_ITEM = "play_queue_item"
 
 DEFAULT_OFFSET = 0
 DEFAULT_LIMIT = 25
@@ -206,6 +208,18 @@ def async_setup_services(hass: HomeAssistant) -> None:
         },
         func="_async_handle_get_queue",
         supports_response=SupportsResponse.ONLY,
+    )
+    service.async_register_platform_entity_service(
+        hass,
+        DOMAIN,
+        SERVICE_PLAY_QUEUE_ITEM,
+        entity_domain=MEDIA_PLAYER_DOMAIN,
+        entity_device_classes=PLAYER_ENTITY_DEVICE_CLASSES,
+        schema={
+            probatio.Required(ATTR_QUEUE_ITEM_ID): cv.string,
+            probatio.Optional(ATTR_USERNAME): cv.string,
+        },
+        func="_async_handle_play_queue_item",
     )
 
 
