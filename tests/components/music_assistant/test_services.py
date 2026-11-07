@@ -1,7 +1,9 @@
 """Test Music Assistant actions."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call
 
+from music_assistant_client.exceptions import InvalidServerVersion
 from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.enums import MediaType
@@ -356,25 +358,33 @@ async def test_get_recommendations_action(
     music_assistant_client: MagicMock,
     snapshot: SnapshotAssertion,
 ) -> None:
-    """Test get_recommendations returns the playable items of each row."""
+    """Test get_recommendations returns the playable items of each enabled row."""
     music_assistant_client.server_info.schema_version = 101
     entry = await setup_integration_from_fixtures(hass, music_assistant_client)
-    music_assistant_client.send_command.return_value = [
+    rows = [
         RecommendationFolder(
-            item_id="recently_played",
+            item_id="recently_played", provider="library", name="Recently played"
+        ).to_dict(),
+        RecommendationFolder(
+            item_id="random_tracks",
             provider="library",
-            name="Recently played",
-            items=[
-                Track(
-                    item_id="track_1",
-                    provider="library",
-                    name="Track 1",
-                    provider_mappings=set(),
-                ),
-                BrowseFolder(item_id="folder_1", provider="library", name="Folder 1"),
-            ],
-        ).to_dict()
+            name="Random tracks",
+            enabled_by_default=False,
+        ).to_dict(),
     ]
+    row_items = [
+        Track(
+            item_id="track_1",
+            provider="library",
+            name="Track 1",
+            provider_mappings=set(),
+        ).to_dict(),
+        BrowseFolder(item_id="folder_1", provider="library", name="Folder 1").to_dict(),
+    ]
+    # the server lists the rows without their items, each row serves them separately
+    music_assistant_client.send_command.side_effect = lambda command, **kwargs: (
+        rows if command == "music/recommendations" else row_items
+    )
     user = MockUser(is_owner=True).add_to_hass(hass)
     response = await hass.services.async_call(
         DOMAIN,
@@ -384,9 +394,50 @@ async def test_get_recommendations_action(
         return_response=True,
         context=Context(user_id=user.id),
     )
-    assert music_assistant_client.send_command.call_args == call(
-        "music/recommendations",
-        require_schema=101,
-        user={"provider": "homeassistant", "user_id": user.id, "required": False},
-    )
+    calling_user = {"provider": "homeassistant", "user_id": user.id, "required": False}
+    assert music_assistant_client.send_command.call_args_list == [
+        call("music/recommendations", require_schema=101, user=calling_user),
+        call(
+            "music/recommendations/items",
+            provider="library",
+            item_id="recently_played",
+            providers=None,
+            require_schema=101,
+            user=calling_user,
+        ),
+    ]
     assert response == snapshot
+
+
+async def test_get_recommendations_action_older_server(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test get_recommendations sends no user to an older server and reports it."""
+    music_assistant_client.server_info.schema_version = 100
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    rows = [
+        RecommendationFolder(
+            item_id="recently_played", provider="library", name="Recently played"
+        ).to_dict()
+    ]
+
+    def send_command(command: str, **kwargs: Any) -> list[dict[str, Any]]:
+        # the real send_command refuses the row items on servers older than schema 101
+        if command == "music/recommendations":
+            return rows
+        raise InvalidServerVersion("Command requires schema 101")
+
+    music_assistant_client.send_command.side_effect = send_command
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_GET_RECOMMENDATIONS,
+            {ATTR_CONFIG_ENTRY_ID: entry.entry_id},
+            blocking=True,
+            return_response=True,
+        )
+    assert err.value.translation_key == "server_too_old"
+    assert music_assistant_client.send_command.call_args_list[0] == call(
+        "music/recommendations", require_schema=None
+    )

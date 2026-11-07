@@ -1,5 +1,6 @@
 """Custom actions (previously known as services) for the Music Assistant integration."""
 
+import asyncio
 from typing import TYPE_CHECKING
 
 from music_assistant_models.enums import MediaType, QueueOption
@@ -63,6 +64,7 @@ from .const import (
 )
 from .helpers import (
     acting_user,
+    catch_musicassistant_error,
     catch_user_not_found,
     get_music_assistant_client,
     user_from_context,
@@ -362,13 +364,27 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
     return response
 
 
+@catch_musicassistant_error
 async def handle_get_recommendations(call: ServiceCall) -> ServiceResponse:
     """Handle get_recommendations action."""
     mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
     username = call.data.get(ATTR_USERNAME)
     with catch_user_not_found(username):
-        folders = await mass.music.recommendations(
-            user=acting_user(mass, username, call.context)
+        user = acting_user(mass, username, call.context)
+        # rows that are off by default are hidden in Music Assistant as well
+        folders = [
+            folder
+            for folder in await mass.music.recommendations(user=user)
+            if folder.enabled_by_default
+        ]
+        # the rows come without their items, each row serves them separately
+        folders_items = await asyncio.gather(
+            *(
+                mass.music.recommendation_items(
+                    folder.provider, folder.item_id, user=user
+                )
+                for folder in folders
+            )
         )
     response: ServiceResponse = RECOMMENDATIONS_SCHEMA(
         {
@@ -377,12 +393,12 @@ async def handle_get_recommendations(call: ServiceCall) -> ServiceResponse:
                     ATTR_NAME: folder.name,
                     ATTR_ITEMS: [
                         media_item_dict_from_mass_item(mass, item)
-                        for item in folder.items
+                        for item in items
                         # nested folders are browse paths, not playable items
                         if not isinstance(item, BrowseFolder)
                     ],
                 }
-                for folder in folders
+                for folder, items in zip(folders, folders_items, strict=True)
             ]
         }
     )
