@@ -407,7 +407,7 @@
   },
   "services": {
     "add_to_playlist": {
-      "description": "Adds items to a playlist in the Music Assistant library.",
+      "description": "Adds items to a playlist in the Music Assistant library. The items are added in the background, so errors while adding them are not reported back.",
       "fields": {
         "config_entry_id": {
           "description": "Select the Music Assistant instance the playlist is in.",
@@ -422,7 +422,7 @@
           "name": "Playlist"
         },
         "username": {
-          "description": "Music Assistant username to edit the playlist as. Only playlists this user may edit can be changed.",
+          "description": "Music Assistant username to edit the playlist as. Only playlists this user may edit can be changed. Defaults to the Music Assistant user linked to the Home Assistant user making the request.",
           "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
         }
       },
