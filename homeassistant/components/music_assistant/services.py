@@ -44,6 +44,7 @@ from .const import (
     ATTR_PLAYLIST,
     ATTR_PLAYLISTS,
     ATTR_PODCASTS,
+    ATTR_POSITIONS,
     ATTR_PRE_ANNOUNCE_URL,
     ATTR_RADIO,
     ATTR_RADIO_MODE,
@@ -90,6 +91,7 @@ SERVICE_PLAY_ANNOUNCEMENT = "play_announcement"
 SERVICE_TRANSFER_QUEUE = "transfer_queue"
 SERVICE_GET_QUEUE = "get_queue"
 SERVICE_ADD_TO_PLAYLIST = "add_to_playlist"
+SERVICE_REMOVE_FROM_PLAYLIST = "remove_from_playlist"
 
 DEFAULT_OFFSET = 0
 DEFAULT_LIMIT = 25
@@ -152,6 +154,22 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 probatio.Required(ATTR_PLAYLIST): cv.string,
                 probatio.Required(ATTR_MEDIA_ID): probatio.All(
                     probatio.EnsureList(), [cv.string]
+                ),
+                probatio.Optional(ATTR_USERNAME): cv.string,
+            }
+        ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_REMOVE_FROM_PLAYLIST,
+        handle_remove_from_playlist,
+        schema=probatio.Schema(
+            {
+                probatio.Required(ATTR_CONFIG_ENTRY_ID): str,
+                probatio.Required(ATTR_PLAYLIST): cv.string,
+                probatio.Required(ATTR_POSITIONS): probatio.All(
+                    probatio.EnsureList(),
+                    [probatio.All(probatio.Coerce(int), probatio.Range(min=1))],
                 ),
                 probatio.Optional(ATTR_USERNAME): cv.string,
             }
@@ -365,19 +383,36 @@ async def handle_get_library(call: ServiceCall) -> ServiceResponse:
 async def handle_add_to_playlist(call: ServiceCall) -> None:
     """Handle add_to_playlist action."""
     mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
-    playlist_uri = call.data[ATTR_PLAYLIST]
-    library_prefix = f"library://{MediaType.PLAYLIST.value}/"
+    db_playlist_id = _library_playlist_id(call.data[ATTR_PLAYLIST])
+    username = call.data.get(ATTR_USERNAME)
+    with catch_user_not_found(username):
+        await mass.music.add_playlist_tracks(
+            db_playlist_id,
+            call.data[ATTR_MEDIA_ID],
+            user=acting_user(mass, username, call.context),
+        )
+
+
+async def handle_remove_from_playlist(call: ServiceCall) -> None:
+    """Handle remove_from_playlist action."""
+    mass = get_music_assistant_client(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    db_playlist_id = _library_playlist_id(call.data[ATTR_PLAYLIST])
+    username = call.data.get(ATTR_USERNAME)
+    with catch_user_not_found(username):
+        await mass.music.remove_playlist_tracks(
+            db_playlist_id,
+            tuple(call.data[ATTR_POSITIONS]),
+            user=acting_user(mass, username, call.context),
+        )
+
+
+def _library_playlist_id(playlist_uri: str) -> str:
     # the server only edits playlists in the library, which it addresses by library id
+    library_prefix = f"library://{MediaType.PLAYLIST.value}/"
     if not playlist_uri.startswith(library_prefix):
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="playlist_not_in_library",
             translation_placeholders={"playlist": playlist_uri},
         )
-    username = call.data.get(ATTR_USERNAME)
-    with catch_user_not_found(username):
-        await mass.music.add_playlist_tracks(
-            playlist_uri.removeprefix(library_prefix),
-            call.data[ATTR_MEDIA_ID],
-            user=acting_user(mass, username, call.context),
-        )
+    return playlist_uri.removeprefix(library_prefix)

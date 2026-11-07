@@ -16,6 +16,7 @@ from homeassistant.components.music_assistant.const import (
     ATTR_MEDIA_ID,
     ATTR_MEDIA_TYPE,
     ATTR_PLAYLIST,
+    ATTR_POSITIONS,
     ATTR_SEARCH_NAME,
     ATTR_USERNAME,
     DOMAIN,
@@ -23,6 +24,7 @@ from homeassistant.components.music_assistant.const import (
 from homeassistant.components.music_assistant.services import (
     SERVICE_ADD_TO_PLAYLIST,
     SERVICE_GET_LIBRARY,
+    SERVICE_REMOVE_FROM_PLAYLIST,
     SERVICE_SEARCH,
 )
 from homeassistant.const import ATTR_CONFIG_ENTRY_ID
@@ -391,6 +393,54 @@ async def test_add_to_playlist_action(
         "music/playlists/add_playlist_tracks",
         db_playlist_id="12",
         uris=["spotify://track/1234", "library://track/5"],
+        require_schema=101,
+        user={"provider": "homeassistant", "user_id": user.id, "required": False},
+    )
+
+
+@pytest.mark.parametrize(
+    ("playlist", "expected_error"),
+    [
+        pytest.param("library://playlist/12", None, id="library_playlist"),
+        pytest.param(
+            "spotify://playlist/12", "playlist_not_in_library", id="provider_playlist"
+        ),
+    ],
+)
+async def test_remove_from_playlist_action(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+    playlist: str,
+    expected_error: str | None,
+) -> None:
+    """Test remove_from_playlist removes positions of a library playlist."""
+    music_assistant_client.server_info.schema_version = 101
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    user = MockUser(is_owner=True).add_to_hass(hass)
+    service_data = {
+        ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+        ATTR_PLAYLIST: playlist,
+        ATTR_POSITIONS: [3, 7],
+    }
+    if expected_error:
+        with pytest.raises(ServiceValidationError) as err:
+            await hass.services.async_call(
+                DOMAIN, SERVICE_REMOVE_FROM_PLAYLIST, service_data, blocking=True
+            )
+        assert err.value.translation_key == expected_error
+        music_assistant_client.send_command.assert_not_called()
+        return
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_REMOVE_FROM_PLAYLIST,
+        service_data,
+        blocking=True,
+        context=Context(user_id=user.id),
+    )
+    assert music_assistant_client.send_command.call_args == call(
+        "music/playlists/remove_playlist_tracks",
+        db_playlist_id="12",
+        positions_to_remove=(3, 7),
         require_schema=101,
         user={"provider": "homeassistant", "user_id": user.id, "required": False},
     )

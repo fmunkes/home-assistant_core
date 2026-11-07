@@ -559,6 +559,28 @@
       },
       "name": "Play media"
     },
+    "remove_from_playlist": {
+      "description": "Removes items from a playlist in the Music Assistant library.",
+      "fields": {
+        "config_entry_id": {
+          "description": "[%key:component::music_assistant::services::add_to_playlist::fields::config_entry_id::description%]",
+          "name": "[%key:component::music_assistant::services::search::fields::config_entry_id::name%]"
+        },
+        "playlist": {
+          "description": "[%key:component::music_assistant::services::add_to_playlist::fields::playlist::description%]",
+          "name": "[%key:component::music_assistant::services::add_to_playlist::fields::playlist::name%]"
+        },
+        "positions": {
+          "description": "Positions of the items to remove, as returned by the get item contents action.",
+          "name": "Positions"
+        },
+        "username": {
+          "description": "[%key:component::music_assistant::services::add_to_playlist::fields::username::description%]",
+          "name": "[%key:component::music_assistant::services::get_library::fields::username::name%]"
+        }
+      },
+      "name": "Remove from playlist"
+    },
     "search": {
       "description": "Performs a global search on the Music Assistant library and all providers.",
       "fields": {
