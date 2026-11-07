@@ -61,6 +61,7 @@ from homeassistant.components.music_assistant.const import (
     ATTR_MESSAGE,
     ATTR_OFFSET,
     ATTR_PRE_ANNOUNCE_URL,
+    ATTR_QUEUE_ITEM_ID,
     ATTR_RADIO_MODE,
     ATTR_SOURCE_PLAYER,
     ATTR_START_ITEM,
@@ -75,6 +76,7 @@ from homeassistant.components.music_assistant.services import (
     SERVICE_GET_QUEUE,
     SERVICE_PLAY_ANNOUNCEMENT,
     SERVICE_PLAY_MEDIA_ADVANCED,
+    SERVICE_REMOVE_QUEUE_ITEM,
     SERVICE_TRANSFER_QUEUE,
 )
 from homeassistant.components.tts import DATA_TTS_MANAGER
@@ -1872,4 +1874,31 @@ async def test_websocket_search_media_acts_as_calling_user(
         provider=AuthProviderType.HOME_ASSISTANT,
         user_id=hass_admin_user.id,
         required=False,
+    )
+
+
+async def test_media_player_remove_queue_item_action(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test remove_queue_item runs on the active queue as the calling user."""
+    music_assistant_client.server_info.schema_version = 101
+    await setup_integration_from_fixtures(hass, music_assistant_client)
+    user = MockUser(is_owner=True).add_to_hass(hass)
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_REMOVE_QUEUE_ITEM,
+        {
+            ATTR_ENTITY_ID: "media_player.test_group_player_1",
+            ATTR_QUEUE_ITEM_ID: "queue_item_1",
+        },
+        blocking=True,
+        context=Context(user_id=user.id),
+    )
+    assert music_assistant_client.send_command.call_args == call(
+        "player_queues/delete_item",
+        queue_id="test_group_player_1",
+        item_id_or_index="queue_item_1",
+        require_schema=101,
+        user={"provider": "homeassistant", "user_id": user.id, "required": False},
     )
