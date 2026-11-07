@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, call
 from music_assistant_client.helpers import LinkedUser
 from music_assistant_models.auth import AuthProviderType
 from music_assistant_models.enums import MediaType
-from music_assistant_models.errors import UserNotFoundError
+from music_assistant_models.errors import MediaNotFoundError, UserNotFoundError
 from music_assistant_models.media_items import SearchResults
 import pytest
 from pytest_homeassistant.common import MockConfigEntry, MockUser
@@ -26,7 +26,7 @@ from homeassistant.components.music_assistant.services import (
 )
 from homeassistant.const import ATTR_CONFIG_ENTRY_ID
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from .common import create_library_albums_from_fixture, setup_integration_from_fixtures
 
@@ -372,3 +372,29 @@ async def test_get_item_action(
         user={"provider": "homeassistant", "user_id": user.id, "required": False},
     )
     assert response == snapshot
+
+
+async def test_get_item_action_older_server_error(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test get_item sends no user to an older server and converts its errors."""
+    music_assistant_client.server_info.schema_version = 100
+    entry = await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.music.get_item_by_uri = AsyncMock(
+        side_effect=MediaNotFoundError("Album 999 not found")
+    )
+    with pytest.raises(HomeAssistantError, match="Album 999 not found"):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_GET_ITEM,
+            {
+                ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+                ATTR_MEDIA_ID: "library://album/999",
+            },
+            blocking=True,
+            return_response=True,
+        )
+    assert music_assistant_client.music.get_item_by_uri.call_args == call(
+        "library://album/999", user=None
+    )
