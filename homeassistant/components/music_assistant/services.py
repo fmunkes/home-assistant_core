@@ -218,7 +218,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
         entity_device_classes=PLAYER_ENTITY_DEVICE_CLASSES,
         schema={
             probatio.Required(ATTR_QUEUE_ITEM_ID): cv.string,
-            probatio.Required(ATTR_SHIFT): int,
+            probatio.Required(ATTR_SHIFT): probatio.Coerce(int),
             probatio.Optional(ATTR_USERNAME): cv.string,
         },
         func="_async_handle_move_queue_item",
