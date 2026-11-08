@@ -1,7 +1,7 @@
 """Music Assistant Switch platform."""
 
 from dataclasses import replace
-from typing import Any, Final, override
+from typing import TYPE_CHECKING, Any, Final, override
 
 from music_assistant_client.client import MusicAssistantClient
 from music_assistant_models.dsp import DSPConfig
@@ -41,7 +41,8 @@ async def async_setup_entry(
 ) -> None:
     """Set up Music Assistant Switch Entities (Player Options) from Config Entry."""
     mass = entry.runtime_data.mass
-    assert mass.server_info  # for type checking
+    if TYPE_CHECKING:
+        assert mass.server_info is not None
     # older servers drop the preset when DSP is switched, so they get no DSP switch
     dsp_supported = mass.server_info.schema_version >= PLAYER_SETTINGS_SCHEMA_VERSION
 
