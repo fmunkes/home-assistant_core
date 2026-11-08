@@ -136,9 +136,8 @@ class MusicAssistantDspSwitch(MusicAssistantEntity, SwitchEntity):
 
     @override
     async def async_added_to_hass(self) -> None:
-        """Load the player's DSP config and follow its changes."""
-        self._dsp_config = await self.mass.config.get_player_dsp_config(self.player_id)
-        await super().async_added_to_hass()
+        """Follow the player's DSP config, then load it."""
+        # subscribe first, so a change while loading is not missed
         self.async_on_remove(
             self.mass.subscribe(
                 self._on_dsp_config_updated,
@@ -146,6 +145,8 @@ class MusicAssistantDspSwitch(MusicAssistantEntity, SwitchEntity):
                 self.player_id,
             )
         )
+        self._dsp_config = await self.mass.config.get_player_dsp_config(self.player_id)
+        await super().async_added_to_hass()
 
     @property
     @override
