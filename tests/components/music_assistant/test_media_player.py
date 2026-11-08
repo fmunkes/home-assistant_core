@@ -1435,21 +1435,12 @@ async def test_media_player_transfer_queue_action(
     )
 
 
-@pytest.mark.parametrize(
-    ("schema_version", "expected_error"),
-    [
-        pytest.param(101, None, id="current_server"),
-        pytest.param(100, "username_not_supported", id="older_server"),
-    ],
-)
 async def test_media_player_transfer_queue_action_username(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
-    schema_version: int,
-    expected_error: str | None,
 ) -> None:
     """Test transfer_queue runs as the given user, and never as the calling user."""
-    music_assistant_client.server_info.schema_version = schema_version
+    music_assistant_client.server_info.schema_version = 101
     await setup_integration_from_fixtures(hass, music_assistant_client)
     user = MockUser(is_owner=True).add_to_hass(hass)
     service_data = {
@@ -1465,18 +1456,11 @@ async def test_media_player_transfer_queue_action_username(
         context=Context(user_id=user.id),
     )
     assert "user" not in music_assistant_client.send_command.call_args.kwargs
-    music_assistant_client.send_command.reset_mock()
-    service_data[ATTR_USERNAME] = "john"
-    if expected_error:
-        with pytest.raises(ServiceValidationError) as err:
-            await hass.services.async_call(
-                DOMAIN, SERVICE_TRANSFER_QUEUE, service_data, blocking=True
-            )
-        assert err.value.translation_key == expected_error
-        music_assistant_client.send_command.assert_not_called()
-        return
     await hass.services.async_call(
-        DOMAIN, SERVICE_TRANSFER_QUEUE, service_data, blocking=True
+        DOMAIN,
+        SERVICE_TRANSFER_QUEUE,
+        service_data | {ATTR_USERNAME: "john"},
+        blocking=True,
     )
     assert music_assistant_client.send_command.call_args == call(
         "player_queues/transfer",
@@ -1486,6 +1470,28 @@ async def test_media_player_transfer_queue_action_username(
         require_schema=101,
         user="john",
     )
+
+
+async def test_media_player_transfer_queue_action_username_on_older_server(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test transfer_queue refuses a username before sending on an older server."""
+    music_assistant_client.server_info.schema_version = 100
+    await setup_integration_from_fixtures(hass, music_assistant_client)
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_TRANSFER_QUEUE,
+            {
+                ATTR_ENTITY_ID: "media_player.test_player_1",
+                ATTR_SOURCE_PLAYER: "media_player.my_super_test_player_2",
+                ATTR_USERNAME: "john",
+            },
+            blocking=True,
+        )
+    assert err.value.translation_key == "username_not_supported"
+    music_assistant_client.send_command.assert_not_called()
 
 
 async def test_media_player_get_queue_action(
