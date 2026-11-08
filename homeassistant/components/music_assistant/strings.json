@@ -415,7 +415,7 @@
           "name": "Playlist name"
         },
         "provider": {
-          "description": "Music Assistant provider instance or domain to create the playlist in. When omitted, it is created as a Music Assistant playlist. The playlist is added to the Music Assistant library in either case.",
+          "description": "Music Assistant provider to create the playlist in, given by its domain, such as `spotify`. With more than one account of that provider, use the instance ID of the provider instead. When omitted, it is created as a Music Assistant playlist. The playlist is added to the Music Assistant library in either case.",
           "name": "Provider"
         },
         "username": {
