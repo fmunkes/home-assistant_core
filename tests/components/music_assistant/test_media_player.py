@@ -1,6 +1,5 @@
 """Test Music Assistant media player entities."""
 
-from contextlib import nullcontext
 from typing import Any
 from unittest.mock import MagicMock, call, patch
 
@@ -1906,35 +1905,46 @@ async def test_websocket_search_media_acts_as_calling_user(
     )
 
 
-@pytest.mark.parametrize(
-    ("schema_version", "expected_error"),
-    [
-        pytest.param(101, None, id="saved"),
-        pytest.param(100, "server_too_old", id="older_server"),
-    ],
-)
 async def test_media_player_save_queue_as_playlist_action(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
-    schema_version: int,
-    expected_error: str | None,
 ) -> None:
     """Test save_queue_as_playlist saves the active queue as the calling user."""
-    music_assistant_client.server_info.schema_version = schema_version
+    music_assistant_client.server_info.schema_version = 101
     await setup_integration_from_fixtures(hass, music_assistant_client)
-    if expected_error:
-        # the real send_command refuses the command on servers older than schema 101
-        music_assistant_client.send_command.side_effect = InvalidServerVersion(
-            "Command requires schema 101"
-        )
-    else:
-        music_assistant_client.send_command.return_value = {
-            "name": "save_queue_as_playlist"
-        }
+    music_assistant_client.send_command.return_value = {
+        "name": "save_queue_as_playlist"
+    }
     user = MockUser(is_owner=True).add_to_hass(hass)
-    with (
-        pytest.raises(ServiceValidationError) if expected_error else nullcontext()
-    ) as err:
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SAVE_QUEUE_AS_PLAYLIST,
+        {ATTR_ENTITY_ID: "media_player.test_group_player_1", ATTR_NAME: "Party mix"},
+        blocking=True,
+        context=Context(user_id=user.id),
+    )
+    assert music_assistant_client.send_command.call_args == call(
+        "player_queues/save_as_playlist",
+        queue_id="test_group_player_1",
+        name="Party mix",
+        require_schema=101,
+        user={"provider": "homeassistant", "user_id": user.id, "required": False},
+    )
+
+
+async def test_media_player_save_queue_as_playlist_action_older_server(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test save_queue_as_playlist on a server that lacks the command."""
+    music_assistant_client.server_info.schema_version = 100
+    await setup_integration_from_fixtures(hass, music_assistant_client)
+    # the real send_command refuses the command on servers older than schema 101
+    music_assistant_client.send_command.side_effect = InvalidServerVersion(
+        "Command requires schema 101"
+    )
+    user = MockUser(is_owner=True).add_to_hass(hass)
+    with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(
             DOMAIN,
             SERVICE_SAVE_QUEUE_AS_PLAYLIST,
@@ -1945,18 +1955,6 @@ async def test_media_player_save_queue_as_playlist_action(
             blocking=True,
             context=Context(user_id=user.id),
         )
-    sent = music_assistant_client.send_command.call_args.kwargs
-    if expected_error:
-        assert err.value.translation_key == expected_error
-        # an older server can't act as a user, so none is sent
-        assert "user" not in sent
-    else:
-        assert sent["user"] == {
-            "provider": "homeassistant",
-            "user_id": user.id,
-            "required": False,
-        }
-    assert music_assistant_client.send_command.call_args.args == (
-        "player_queues/save_as_playlist",
-    )
-    assert sent["require_schema"] == 101
+    assert err.value.translation_key == "server_too_old"
+    # an older server can't act as a user, so none is sent
+    assert "user" not in music_assistant_client.send_command.call_args.kwargs
