@@ -145,7 +145,10 @@ class MusicAssistantDspSwitch(MusicAssistantEntity, SwitchEntity):
                 self.player_id,
             )
         )
-        self._dsp_config = await self.mass.config.get_player_dsp_config(self.player_id)
+        config = await self.mass.config.get_player_dsp_config(self.player_id)
+        # an update that arrived while loading is newer than the response
+        if self._dsp_config is None:
+            self._dsp_config = config
         await super().async_added_to_hass()
 
     @property

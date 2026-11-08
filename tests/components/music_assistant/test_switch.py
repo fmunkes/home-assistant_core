@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, call
 
 from music_assistant_models.dsp import DSPConfig
 from music_assistant_models.enums import EventType
+from music_assistant_models.event import MassEvent
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
@@ -179,6 +180,38 @@ async def test_dsp_switch(
 
     # a group applies the DSP of each member
     assert hass.states.get("switch.test_group_player_1_dsp") is None
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_dsp_switch_update_while_loading(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test an update that arrives while loading wins over the older response."""
+    music_assistant_client.server_info.schema_version = 101
+
+    async def config_while_loading(player_id: str) -> DSPConfig:
+        on_config_updated = next(
+            sub.args[0]
+            for sub in music_assistant_client.subscribe.call_args_list
+            if sub.args[1:] == (EventType.PLAYER_DSP_CONFIG_UPDATED, player_id)
+        )
+        on_config_updated(
+            MassEvent(
+                EventType.PLAYER_DSP_CONFIG_UPDATED,
+                object_id=player_id,
+                data=DSPConfig(enabled=True).to_dict(),
+            )
+        )
+        return DSPConfig(enabled=False)
+
+    music_assistant_client.config.get_player_dsp_config = AsyncMock(
+        side_effect=config_while_loading
+    )
+    await setup_integration_from_fixtures(hass, music_assistant_client)
+    state = hass.states.get("switch.test_player_1_dsp")
+    assert state
+    assert state.state == STATE_ON
 
 
 async def test_dsp_switch_registry(
