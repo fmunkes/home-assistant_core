@@ -1,6 +1,5 @@
 """Test Music Assistant actions."""
 
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call
 
 from music_assistant_client.exceptions import InvalidServerVersion
@@ -382,9 +381,7 @@ async def test_get_recommendations_action(
         BrowseFolder(item_id="folder_1", provider="library", name="Folder 1").to_dict(),
     ]
     # the server lists the rows without their items, each row serves them separately
-    music_assistant_client.send_command.side_effect = lambda command, **kwargs: (
-        rows if command == "music/recommendations" else row_items
-    )
+    music_assistant_client.send_command.side_effect = [rows, row_items]
     user = MockUser(is_owner=True).add_to_hass(hass)
     response = await hass.services.async_call(
         DOMAIN,
@@ -422,13 +419,11 @@ async def test_get_recommendations_action_older_server(
         ).to_dict()
     ]
 
-    def send_command(command: str, **kwargs: Any) -> list[dict[str, Any]]:
-        # the real send_command refuses the row items on servers older than schema 101
-        if command == "music/recommendations":
-            return rows
-        raise InvalidServerVersion("Command requires schema 101")
-
-    music_assistant_client.send_command.side_effect = send_command
+    # the real send_command refuses the row items on servers older than schema 101
+    music_assistant_client.send_command.side_effect = [
+        rows,
+        InvalidServerVersion("Command requires schema 101"),
+    ]
     with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(
             DOMAIN,
