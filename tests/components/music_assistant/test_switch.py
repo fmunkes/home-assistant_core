@@ -1,14 +1,23 @@
 """Test Music Assistant switch entities."""
 
-from unittest.mock import MagicMock, call
+from unittest.mock import AsyncMock, MagicMock, call
 
+from music_assistant_models.dsp import DSPConfig
 from music_assistant_models.enums import EventType
+import pytest
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.music_assistant.const import DOMAIN
 from homeassistant.components.music_assistant.switch import PLAYER_OPTIONS_SWITCH
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN, SERVICE_TOGGLE
-from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF, STATE_ON, Platform
+from homeassistant.const import (
+    ATTR_ENTITY_ID,
+    SERVICE_TURN_OFF,
+    STATE_OFF,
+    STATE_ON,
+    EntityCategory,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.translation import LOCALE_EN, async_get_translations
@@ -129,3 +138,59 @@ async def test_name_translation_availability(
         assert translations.get(f"{prefix}{translation_key}.name") is not None, (
             f"{translation_key} is missing in strings.json for platform switch"
         )
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_dsp_switch(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test the DSP switch keeps the player's DSP settings when switching."""
+    music_assistant_client.server_info.schema_version = 101
+    config = music_assistant_client.config
+    config.get_player_dsp_config = AsyncMock(
+        return_value=DSPConfig(enabled=True, preset_id="night")
+    )
+    config.save_player_dsp_config = AsyncMock()
+    await setup_integration_from_fixtures(hass, music_assistant_client)
+    entity_id = "switch.test_player_1_dsp"
+    state = hass.states.get(entity_id)
+    assert state
+    assert state.state == STATE_ON
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: entity_id}, blocking=True
+    )
+    assert config.save_player_dsp_config.call_args == call(
+        "00:00:00:00:00:01", DSPConfig(enabled=False, preset_id="night")
+    )
+
+    # the switch follows the config the server reports
+    await trigger_subscription_callback(
+        hass,
+        music_assistant_client,
+        EventType.PLAYER_DSP_CONFIG_UPDATED,
+        "00:00:00:00:00:01",
+        DSPConfig(enabled=False, preset_id="night").to_dict(),
+    )
+    state = hass.states.get(entity_id)
+    assert state
+    assert state.state == STATE_OFF
+
+    # a group applies the DSP of each member
+    assert hass.states.get("switch.test_group_player_1_dsp") is None
+
+
+async def test_dsp_switch_registry(
+    hass: HomeAssistant,
+    entity_registry: er.EntityRegistry,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test the DSP switch is a disabled config entity."""
+    music_assistant_client.server_info.schema_version = 101
+    await setup_integration_from_fixtures(hass, music_assistant_client)
+    entry = entity_registry.async_get("switch.test_player_1_dsp")
+    assert entry
+    assert entry.unique_id == "00:00:00:00:00:01_dsp"
+    assert entry.entity_category is EntityCategory.CONFIG
+    assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
