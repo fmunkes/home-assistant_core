@@ -13,18 +13,14 @@ from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.music_assistant.const import (
     ATTR_FAVORITE,
-    ATTR_MEDIA_ID,
     ATTR_MEDIA_TYPE,
-    ATTR_SEARCH_NAME,
-    ATTR_USERNAME,
     DOMAIN,
 )
 from homeassistant.components.music_assistant.services import (
-    SERVICE_GET_ITEM,
-    SERVICE_GET_LIBRARY,
-    SERVICE_SEARCH,
+    MusicAssistantService,
+    MusicAssistantServiceArgument,
 )
-from homeassistant.const import ATTR_CONFIG_ENTRY_ID
+from homeassistant.const import CommonServiceArgument
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
@@ -48,10 +44,10 @@ async def test_search_action(
     )
     response = await hass.services.async_call(
         DOMAIN,
-        SERVICE_SEARCH,
+        MusicAssistantService.SEARCH,
         {
-            ATTR_CONFIG_ENTRY_ID: entry.entry_id,
-            ATTR_SEARCH_NAME: "test",
+            CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
+            MusicAssistantServiceArgument.NAME: "test",
         },
         blocking=True,
         return_response=True,
@@ -75,11 +71,11 @@ async def test_search_action_with_username(
     # valid user ok and forwarded
     await hass.services.async_call(
         DOMAIN,
-        SERVICE_SEARCH,
+        MusicAssistantService.SEARCH,
         {
-            ATTR_CONFIG_ENTRY_ID: entry.entry_id,
-            ATTR_SEARCH_NAME: "test",
-            ATTR_USERNAME: "user_user",
+            CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
+            MusicAssistantServiceArgument.NAME: "test",
+            MusicAssistantServiceArgument.USERNAME: "user_user",
         },
         blocking=True,
         return_response=True,
@@ -113,7 +109,7 @@ async def test_search_action_with_username(
         pytest.param(None, {}, None, id="no calling user"),
         pytest.param(
             MOCK_USER_ID,
-            {ATTR_USERNAME: "user_user"},
+            {MusicAssistantServiceArgument.USERNAME: "user_user"},
             "user_user",
             id="explicit username wins",
         ),
@@ -132,10 +128,10 @@ async def test_search_action_acts_as_calling_user(
 
     await hass.services.async_call(
         DOMAIN,
-        SERVICE_SEARCH,
+        MusicAssistantService.SEARCH,
         {
-            ATTR_CONFIG_ENTRY_ID: entry.entry_id,
-            ATTR_SEARCH_NAME: "test",
+            CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
+            MusicAssistantServiceArgument.NAME: "test",
             **extra_data,
         },
         blocking=True,
@@ -161,11 +157,11 @@ async def test_search_action_with_unknown_username(
     with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(
             DOMAIN,
-            SERVICE_SEARCH,
+            MusicAssistantService.SEARCH,
             {
-                ATTR_CONFIG_ENTRY_ID: entry.entry_id,
-                ATTR_SEARCH_NAME: "test",
-                ATTR_USERNAME: "nobody",
+                CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
+                MusicAssistantServiceArgument.NAME: "test",
+                MusicAssistantServiceArgument.USERNAME: "nobody",
             },
             blocking=True,
             return_response=True,
@@ -209,10 +205,10 @@ async def test_search_action_invalid_config_entry(
     with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(
             DOMAIN,
-            SERVICE_SEARCH,
+            MusicAssistantService.SEARCH,
             {
-                ATTR_CONFIG_ENTRY_ID: config_entry_id,
-                ATTR_SEARCH_NAME: "test",
+                CommonServiceArgument.CONFIG_ENTRY_ID: config_entry_id,
+                MusicAssistantServiceArgument.NAME: "test",
             },
             blocking=True,
             return_response=True,
@@ -242,9 +238,9 @@ async def test_get_library_action(
     entry = await setup_integration_from_fixtures(hass, music_assistant_client)
     response = await hass.services.async_call(
         DOMAIN,
-        SERVICE_GET_LIBRARY,
+        MusicAssistantService.GET_LIBRARY,
         {
-            ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+            CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
             ATTR_MEDIA_TYPE: media_type,
         },
         blocking=True,
@@ -265,13 +261,16 @@ async def test_get_library_action_favorite_filter(
 ) -> None:
     """Test the favorite filter is forwarded as given: a like, a dislike or absent."""
     entry = await setup_integration_from_fixtures(hass, music_assistant_client)
-    data = {ATTR_CONFIG_ENTRY_ID: entry.entry_id, ATTR_MEDIA_TYPE: "album"}
+    data = {
+        CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
+        ATTR_MEDIA_TYPE: "album",
+    }
     if favorite is not None:
         data[ATTR_FAVORITE] = favorite
 
     await hass.services.async_call(
         DOMAIN,
-        SERVICE_GET_LIBRARY,
+        MusicAssistantService.GET_LIBRARY,
         data,
         blocking=True,
         return_response=True,
@@ -308,11 +307,11 @@ async def test_get_library_action_with_username(
     # an explicit username is forwarded to the server (which validates it)
     await hass.services.async_call(
         DOMAIN,
-        SERVICE_GET_LIBRARY,
+        MusicAssistantService.GET_LIBRARY,
         {
-            ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+            CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
             ATTR_MEDIA_TYPE: media_type,
-            ATTR_USERNAME: "user_user",
+            MusicAssistantServiceArgument.USERNAME: "user_user",
         },
         blocking=True,
         return_response=True,
@@ -334,11 +333,11 @@ async def test_get_library_action_with_unknown_username(
     with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(
             DOMAIN,
-            SERVICE_GET_LIBRARY,
+            MusicAssistantService.GET_LIBRARY,
             {
-                ATTR_CONFIG_ENTRY_ID: entry.entry_id,
+                CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
                 ATTR_MEDIA_TYPE: "track",
-                ATTR_USERNAME: "nobody",
+                MusicAssistantServiceArgument.USERNAME: "nobody",
             },
             blocking=True,
             return_response=True,
@@ -361,8 +360,11 @@ async def test_get_item_action(
     user = MockUser(is_owner=True).add_to_hass(hass)
     response = await hass.services.async_call(
         DOMAIN,
-        SERVICE_GET_ITEM,
-        {ATTR_CONFIG_ENTRY_ID: entry.entry_id, ATTR_MEDIA_ID: "library://album/1"},
+        MusicAssistantService.GET_ITEM,
+        {
+            CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
+            MusicAssistantServiceArgument.MEDIA_ID: "library://album/1",
+        },
         blocking=True,
         return_response=True,
         context=Context(user_id=user.id),
@@ -387,10 +389,10 @@ async def test_get_item_action_older_server_error(
     with pytest.raises(HomeAssistantError, match="Album 999 not found"):
         await hass.services.async_call(
             DOMAIN,
-            SERVICE_GET_ITEM,
+            MusicAssistantService.GET_ITEM,
             {
-                ATTR_CONFIG_ENTRY_ID: entry.entry_id,
-                ATTR_MEDIA_ID: "library://album/999",
+                CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
+                MusicAssistantServiceArgument.MEDIA_ID: "library://album/999",
             },
             blocking=True,
             return_response=True,
