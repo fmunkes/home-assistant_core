@@ -10,12 +10,11 @@ from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.music_assistant.const import DOMAIN
 from homeassistant.components.music_assistant.switch import PLAYER_OPTIONS_SWITCH
-from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN, SERVICE_TOGGLE
+from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN, SwitchService
 from homeassistant.const import (
-    ATTR_ENTITY_ID,
-    SERVICE_TURN_OFF,
     STATE_OFF,
     STATE_ON,
+    CommonServiceArgument,
     EntityCategory,
     Platform,
 )
@@ -57,7 +56,10 @@ async def test_switch_action(
 
     # toggle off -> on and verify, that client got called once with correct parameters
     await hass.services.async_call(
-        SWITCH_DOMAIN, SERVICE_TOGGLE, {ATTR_ENTITY_ID: entity_id}, blocking=True
+        SWITCH_DOMAIN,
+        SwitchService.TOGGLE,
+        {CommonServiceArgument.ENTITY_ID: entity_id},
+        blocking=True,
     )
     assert music_assistant_client.send_command.call_count == 1
     assert music_assistant_client.send_command.call_args == call(
@@ -160,7 +162,10 @@ async def test_dsp_switch(
     assert state.state == STATE_ON
 
     await hass.services.async_call(
-        SWITCH_DOMAIN, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: entity_id}, blocking=True
+        SWITCH_DOMAIN,
+        SwitchService.TURN_OFF,
+        {CommonServiceArgument.ENTITY_ID: entity_id},
+        blocking=True,
     )
     assert config.save_player_dsp_config.call_args == call(
         "00:00:00:00:00:01", DSPConfig(enabled=False, preset_id="night")
