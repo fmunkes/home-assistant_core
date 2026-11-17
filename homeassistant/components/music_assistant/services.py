@@ -41,7 +41,6 @@ from .const import (
     DOMAIN,
 )
 from .helpers import (
-    acting_user,
     catch_musicassistant_error,
     catch_user_not_found,
     get_music_assistant_client,
@@ -429,7 +428,7 @@ async def handle_get_lyrics(call: ServiceCall) -> ServiceResponse:
     username = call.data.get(MusicAssistantServiceArgument.USERNAME)
     media_id = call.data[MusicAssistantServiceArgument.MEDIA_ID]
     with catch_user_not_found(username):
-        user = acting_user(mass, username, call.context)
+        user = username if username is not None else user_from_context(call.context)
         track = await mass.music.get_item_by_uri(media_id, user=user)
         if not isinstance(track, Track):
             raise ServiceValidationError(
