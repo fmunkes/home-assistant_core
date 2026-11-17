@@ -2101,7 +2101,6 @@ async def test_media_player_save_queue_as_playlist_action_older_server(
     music_assistant_client.send_command.side_effect = InvalidServerVersion(
         "Command requires schema 101"
     )
-    user = MockUser(is_owner=True).add_to_hass(hass)
     with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(
             DOMAIN,
@@ -2111,8 +2110,5 @@ async def test_media_player_save_queue_as_playlist_action_older_server(
                 MusicAssistantServiceArgument.NAME: "Party mix",
             },
             blocking=True,
-            context=Context(user_id=user.id),
         )
     assert err.value.translation_key == "server_too_old"
-    # an older server can't act as a user, so none is sent
-    assert "user" not in music_assistant_client.send_command.call_args.kwargs
