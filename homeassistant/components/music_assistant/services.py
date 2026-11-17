@@ -38,7 +38,6 @@ from .const import (
     DOMAIN,
 )
 from .helpers import (
-    acting_user,
     catch_musicassistant_error,
     catch_user_not_found,
     get_music_assistant_client,
@@ -428,7 +427,9 @@ async def handle_get_item(call: ServiceCall) -> ServiceResponse:
     with catch_user_not_found(username):
         item = await mass.music.get_item_by_uri(
             call.data[MusicAssistantServiceArgument.MEDIA_ID],
-            user=acting_user(mass, username, call.context),
+            user=(
+                username if username is not None else user_from_context(call.context)
+            ),
         )
     response: ServiceResponse = MEDIA_ITEM_SCHEMA(
         media_item_dict_from_mass_item(mass, item)
