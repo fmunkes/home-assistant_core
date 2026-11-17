@@ -41,7 +41,6 @@ from .const import (
     DOMAIN,
 )
 from .helpers import (
-    acting_user,
     catch_musicassistant_error,
     catch_user_not_found,
     get_music_assistant_client,
@@ -428,7 +427,7 @@ async def handle_get_recommendations(call: ServiceCall) -> ServiceResponse:
     )
     username = call.data.get(MusicAssistantServiceArgument.USERNAME)
     with catch_user_not_found(username):
-        user = acting_user(mass, username, call.context)
+        user = username if username is not None else user_from_context(call.context)
         # rows that are off by default are hidden in Music Assistant as well
         folders = [
             folder
