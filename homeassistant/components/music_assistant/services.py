@@ -38,7 +38,6 @@ from .const import (
     DOMAIN,
 )
 from .helpers import (
-    acting_user,
     catch_musicassistant_error,
     catch_user_not_found,
     get_music_assistant_client,
@@ -439,5 +438,7 @@ async def handle_add_to_playlist(call: ServiceCall) -> None:
         await mass.music.add_playlist_tracks(
             playlist_uri.removeprefix(library_prefix),
             call.data[MusicAssistantServiceArgument.MEDIA_ID],
-            user=acting_user(mass, username, call.context),
+            user=(
+                username if username is not None else user_from_context(call.context)
+            ),
         )
