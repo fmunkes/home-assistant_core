@@ -38,7 +38,6 @@ from .const import (
     DOMAIN,
 )
 from .helpers import (
-    acting_user,
     catch_musicassistant_error,
     catch_user_not_found,
     get_music_assistant_client,
@@ -453,7 +452,9 @@ async def handle_add_to_playlist(call: ServiceCall) -> None:
         await mass.music.add_playlist_tracks(
             db_playlist_id,
             call.data[MusicAssistantServiceArgument.MEDIA_ID],
-            user=acting_user(mass, username, call.context),
+            user=(
+                username if username is not None else user_from_context(call.context)
+            ),
         )
 
 
@@ -471,7 +472,9 @@ async def handle_remove_from_playlist(call: ServiceCall) -> None:
         await mass.music.remove_playlist_tracks(
             db_playlist_id,
             tuple(call.data[MusicAssistantServiceArgument.POSITIONS]),
-            user=acting_user(mass, username, call.context),
+            user=(
+                username if username is not None else user_from_context(call.context)
+            ),
         )
 
 
