@@ -41,7 +41,6 @@ from .const import (
     DOMAIN,
 )
 from .helpers import (
-    acting_user,
     catch_musicassistant_error,
     catch_user_not_found,
     get_music_assistant_client,
@@ -448,7 +447,7 @@ async def handle_get_item_contents(call: ServiceCall) -> ServiceResponse:
     collection_marker = f"://{MediaType.COLLECTION.value}/"
     contents: Sequence[MediaItemType]
     with catch_user_not_found(username):
-        user = acting_user(mass, username, call.context)
+        user = username if username is not None else user_from_context(call.context)
         # a collection is paged directly, its item carries all of its items
         if collection_marker in media_uri:
             collection_id = media_uri.split(collection_marker, 1)[1]
