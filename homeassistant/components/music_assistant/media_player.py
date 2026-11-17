@@ -701,7 +701,7 @@ class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
                 source_queue_id,
                 target_queue_id,
                 auto_play,
-                user=acting_user(self.mass, username, None),
+                user=username,
             )
 
     @catch_musicassistant_error

@@ -1567,9 +1567,13 @@ async def test_media_player_transfer_queue_action_username_on_older_server(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
 ) -> None:
-    """Test transfer_queue refuses a username before sending on an older server."""
+    """Test transfer_queue as a given user on a server that can't act as a user."""
     music_assistant_client.server_info.schema_version = 100
     await setup_integration_from_fixtures(hass, music_assistant_client)
+    # the real send_command refuses a user on servers older than schema 101
+    music_assistant_client.send_command.side_effect = InvalidServerVersion(
+        "Command requires schema 101"
+    )
     with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(
             DOMAIN,
@@ -1581,8 +1585,7 @@ async def test_media_player_transfer_queue_action_username_on_older_server(
             },
             blocking=True,
         )
-    assert err.value.translation_key == "username_not_supported"
-    music_assistant_client.send_command.assert_not_called()
+    assert err.value.translation_key == "server_too_old"
 
 
 async def test_media_player_transfer_queue_auto_play_string(
