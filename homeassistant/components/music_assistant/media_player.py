@@ -762,7 +762,11 @@ class MusicAssistantPlayer(MusicAssistantEntity, MediaPlayerEntity):
                 self.active_queue.queue_id,
                 queue_item_id,
                 shift,
-                user=acting_user(self.mass, username, self._context),
+                user=(
+                    username
+                    if username is not None
+                    else user_from_context(self._context)
+                ),
             )
 
     @override
