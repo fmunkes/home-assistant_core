@@ -1,5 +1,6 @@
 """Test Music Assistant actions."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call
 
 from music_assistant_client.helpers import LinkedUser
@@ -377,14 +378,29 @@ async def test_add_to_playlist_action(
     )
 
 
+@pytest.mark.parametrize(
+    ("extra_data", "expected_user"),
+    [
+        pytest.param(
+            {MusicAssistantServiceArgument.USERNAME: "john"}, "john", id="given_user"
+        ),
+        pytest.param(
+            {},
+            {"provider": "homeassistant", "user_id": "ha_user_1", "required": False},
+            id="calling_user",
+        ),
+    ],
+)
 async def test_remove_from_playlist_action(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
+    extra_data: dict[str, Any],
+    expected_user: str | dict[str, Any],
 ) -> None:
     """Test remove_from_playlist removes positions of a library playlist."""
     music_assistant_client.server_info.schema_version = 101
     entry = await setup_integration_from_fixtures(hass, music_assistant_client)
-    user = MockUser(is_owner=True).add_to_hass(hass)
+    MockUser(id="ha_user_1", is_owner=True).add_to_hass(hass)
     await hass.services.async_call(
         DOMAIN,
         MusicAssistantService.REMOVE_FROM_PLAYLIST,
@@ -392,16 +408,17 @@ async def test_remove_from_playlist_action(
             CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
             MusicAssistantServiceArgument.PLAYLIST: "library://playlist/12",
             MusicAssistantServiceArgument.POSITIONS: [3, 7],
-        },
+        }
+        | extra_data,
         blocking=True,
-        context=Context(user_id=user.id),
+        context=Context(user_id="ha_user_1"),
     )
     assert music_assistant_client.send_command.call_args == call(
         "music/playlists/remove_playlist_tracks",
         db_playlist_id="12",
         positions_to_remove=(3, 7),
         require_schema=101,
-        user={"provider": "homeassistant", "user_id": user.id, "required": False},
+        user=expected_user,
     )
 
 
