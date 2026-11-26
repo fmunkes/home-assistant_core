@@ -1,5 +1,6 @@
 """Test Music Assistant actions."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call
 
 from music_assistant_client.helpers import LinkedUser
@@ -346,32 +347,48 @@ async def test_get_library_action_with_unknown_username(
     assert err.value.translation_placeholders == {"username": "nobody"}
 
 
+@pytest.mark.parametrize(
+    ("extra_data", "expected_user"),
+    [
+        pytest.param(
+            {MusicAssistantServiceArgument.USERNAME: "john"}, "john", id="given_user"
+        ),
+        pytest.param(
+            {},
+            {"provider": "homeassistant", "user_id": "ha_user_1", "required": False},
+            id="calling_user",
+        ),
+    ],
+)
 async def test_get_item_action(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
+    extra_data: dict[str, Any],
+    expected_user: str | dict[str, Any],
     snapshot: SnapshotAssertion,
 ) -> None:
-    """Test get_item returns the item as the calling user sees it."""
+    """Test get_item returns the item as the user sees it."""
     music_assistant_client.server_info.schema_version = 101
     entry = await setup_integration_from_fixtures(hass, music_assistant_client)
     music_assistant_client.music.get_item_by_uri = AsyncMock(
         return_value=create_library_albums_from_fixture()[0]
     )
-    user = MockUser(is_owner=True).add_to_hass(hass)
+    MockUser(id="ha_user_1", is_owner=True).add_to_hass(hass)
     response = await hass.services.async_call(
         DOMAIN,
         MusicAssistantService.GET_ITEM,
         {
             CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
             MusicAssistantServiceArgument.MEDIA_ID: "library://album/1",
-        },
+        }
+        | extra_data,
         blocking=True,
         return_response=True,
-        context=Context(user_id=user.id),
+        context=Context(user_id="ha_user_1"),
     )
     assert music_assistant_client.music.get_item_by_uri.call_args == call(
         "library://album/1",
-        user={"provider": "homeassistant", "user_id": user.id, "required": False},
+        user=expected_user,
     )
     assert response == snapshot
 
