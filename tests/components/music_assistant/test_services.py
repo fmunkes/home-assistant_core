@@ -1,5 +1,6 @@
 """Test Music Assistant actions."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call
 
 from music_assistant_client.exceptions import InvalidServerVersion
@@ -352,9 +353,24 @@ async def test_get_library_action_with_unknown_username(
     assert err.value.translation_placeholders == {"username": "nobody"}
 
 
+@pytest.mark.parametrize(
+    ("extra_data", "expected_user"),
+    [
+        pytest.param(
+            {MusicAssistantServiceArgument.USERNAME: "john"}, "john", id="given_user"
+        ),
+        pytest.param(
+            {},
+            {"provider": "homeassistant", "user_id": "ha_user_1", "required": False},
+            id="calling_user",
+        ),
+    ],
+)
 async def test_get_recommendations_action(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
+    extra_data: dict[str, Any],
+    expected_user: str | dict[str, Any],
     snapshot: SnapshotAssertion,
 ) -> None:
     """Test get_recommendations returns the playable items of each enabled row."""
@@ -382,25 +398,24 @@ async def test_get_recommendations_action(
     ]
     # the server lists the rows without their items, each row serves them separately
     music_assistant_client.send_command.side_effect = [rows, row_items]
-    user = MockUser(is_owner=True).add_to_hass(hass)
+    MockUser(id="ha_user_1", is_owner=True).add_to_hass(hass)
     response = await hass.services.async_call(
         DOMAIN,
         MusicAssistantService.GET_RECOMMENDATIONS,
-        {CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id},
+        {CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id} | extra_data,
         blocking=True,
         return_response=True,
-        context=Context(user_id=user.id),
+        context=Context(user_id="ha_user_1"),
     )
-    calling_user = {"provider": "homeassistant", "user_id": user.id, "required": False}
     assert music_assistant_client.send_command.call_args_list == [
-        call("music/recommendations", require_schema=101, user=calling_user),
+        call("music/recommendations", require_schema=101, user=expected_user),
         call(
             "music/recommendations/items",
             provider="library",
             item_id="recently_played",
             providers=None,
             require_schema=101,
-            user=calling_user,
+            user=expected_user,
         ),
     ]
     assert response == snapshot
