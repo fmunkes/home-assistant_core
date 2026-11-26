@@ -1,5 +1,6 @@
 """Test Music Assistant actions."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call
 
 from music_assistant_client.exceptions import InvalidServerVersion
@@ -353,12 +354,27 @@ async def test_get_library_action_with_unknown_username(
     assert err.value.translation_placeholders == {"username": "nobody"}
 
 
+@pytest.mark.parametrize(
+    ("extra_data", "expected_user"),
+    [
+        pytest.param(
+            {MusicAssistantServiceArgument.USERNAME: "john"}, "john", id="given_user"
+        ),
+        pytest.param(
+            {},
+            {"provider": "homeassistant", "user_id": "ha_user_1", "required": False},
+            id="calling_user",
+        ),
+    ],
+)
 async def test_get_item_contents_action(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
+    extra_data: dict[str, Any],
+    expected_user: str | dict[str, Any],
     snapshot: SnapshotAssertion,
 ) -> None:
-    """Test get_item_contents lists a playlist with positions as the calling user."""
+    """Test get_item_contents lists a playlist with positions as the user."""
     music_assistant_client.server_info.schema_version = 101
     entry = await setup_integration_from_fixtures(hass, music_assistant_client)
     music = music_assistant_client.music
@@ -378,7 +394,7 @@ async def test_get_item_contents_action(
             )
         ]
     )
-    user = MockUser(is_owner=True).add_to_hass(hass)
+    MockUser(id="ha_user_1", is_owner=True).add_to_hass(hass)
     response = await hass.services.async_call(
         DOMAIN,
         MusicAssistantService.GET_ITEM_CONTENTS,
@@ -387,14 +403,14 @@ async def test_get_item_contents_action(
             MusicAssistantServiceArgument.MEDIA_ID: "library://playlist/12",
             MusicAssistantServiceArgument.LIMIT: 10,
             MusicAssistantServiceArgument.OFFSET: 20,
-        },
+        }
+        | extra_data,
         blocking=True,
         return_response=True,
-        context=Context(user_id=user.id),
+        context=Context(user_id="ha_user_1"),
     )
-    calling_user = {"provider": "homeassistant", "user_id": user.id, "required": False}
     assert music.get_playlist_tracks.call_args == call(
-        "12", "library", limit=10, offset=20, user=calling_user
+        "12", "library", limit=10, offset=20, user=expected_user
     )
     # the position is what remove actions need to address a playlist item
     assert response["items"][0]["position"] == 3
