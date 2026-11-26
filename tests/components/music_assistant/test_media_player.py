@@ -1535,7 +1535,7 @@ async def test_media_player_transfer_queue_action_username(
     await setup_integration_from_fixtures(hass, music_assistant_client)
     user = MockUser(is_owner=True).add_to_hass(hass)
     service_data = {
-        ATTR_ENTITY_ID: "media_player.test_player_1",
+        TargetKey.ENTITY_ID: "media_player.test_player_1",
         MusicAssistantServiceArgument.SOURCE_PLAYER: "media_player.my_super_test_player_2",
     }
     # without a username, a calling user on a current server changes nothing
@@ -1579,7 +1579,7 @@ async def test_media_player_transfer_queue_action_username_on_older_server(
             DOMAIN,
             MusicAssistantService.TRANSFER_QUEUE,
             {
-                ATTR_ENTITY_ID: "media_player.test_player_1",
+                TargetKey.ENTITY_ID: "media_player.test_player_1",
                 MusicAssistantServiceArgument.SOURCE_PLAYER: "media_player.my_super_test_player_2",
                 MusicAssistantServiceArgument.USERNAME: "john",
             },
