@@ -2060,33 +2060,49 @@ async def test_websocket_search_media_acts_as_calling_user(
     )
 
 
+@pytest.mark.parametrize(
+    ("extra_data", "expected_user"),
+    [
+        pytest.param(
+            {MusicAssistantServiceArgument.USERNAME: "john"}, "john", id="given_user"
+        ),
+        pytest.param(
+            {},
+            {"provider": "homeassistant", "user_id": "ha_user_1", "required": False},
+            id="calling_user",
+        ),
+    ],
+)
 async def test_media_player_save_queue_as_playlist_action(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
+    extra_data: dict[str, Any],
+    expected_user: str | dict[str, Any],
 ) -> None:
-    """Test save_queue_as_playlist saves the active queue as the calling user."""
+    """Test save_queue_as_playlist saves the active queue as the user."""
     music_assistant_client.server_info.schema_version = 101
     await setup_integration_from_fixtures(hass, music_assistant_client)
     music_assistant_client.send_command.return_value = {
         "name": "save_queue_as_playlist"
     }
-    user = MockUser(is_owner=True).add_to_hass(hass)
+    MockUser(id="ha_user_1", is_owner=True).add_to_hass(hass)
     await hass.services.async_call(
         DOMAIN,
         MusicAssistantService.SAVE_QUEUE_AS_PLAYLIST,
         {
-            ATTR_ENTITY_ID: "media_player.test_group_player_1",
+            TargetKey.ENTITY_ID: "media_player.test_group_player_1",
             MusicAssistantServiceArgument.NAME: "Party mix",
-        },
+        }
+        | extra_data,
         blocking=True,
-        context=Context(user_id=user.id),
+        context=Context(user_id="ha_user_1"),
     )
     assert music_assistant_client.send_command.call_args == call(
         "player_queues/save_as_playlist",
         queue_id="test_group_player_1",
         name="Party mix",
         require_schema=101,
-        user={"provider": "homeassistant", "user_id": user.id, "required": False},
+        user=expected_user,
     )
 
 
@@ -2106,9 +2122,29 @@ async def test_media_player_save_queue_as_playlist_action_older_server(
             DOMAIN,
             MusicAssistantService.SAVE_QUEUE_AS_PLAYLIST,
             {
-                ATTR_ENTITY_ID: "media_player.test_group_player_1",
+                TargetKey.ENTITY_ID: "media_player.test_group_player_1",
                 MusicAssistantServiceArgument.NAME: "Party mix",
             },
             blocking=True,
         )
     assert err.value.translation_key == "server_too_old"
+
+
+async def test_media_player_save_queue_as_playlist_action_no_active_queue(
+    hass: HomeAssistant,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test save_queue_as_playlist raises a translated error without an active queue."""
+    await setup_integration_from_fixtures(hass, music_assistant_client)
+    music_assistant_client.player_queues._queues.pop("test_group_player_1")
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            MusicAssistantService.SAVE_QUEUE_AS_PLAYLIST,
+            {
+                TargetKey.ENTITY_ID: "media_player.test_group_player_1",
+                MusicAssistantServiceArgument.NAME: "Party mix",
+            },
+            blocking=True,
+        )
+    assert err.value.translation_key == "no_active_queue"

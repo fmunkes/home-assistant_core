@@ -19,7 +19,7 @@
     "get_queue": { "service": "mdi:playlist-music" },
     "play_announcement": { "service": "mdi:bullhorn" },
     "play_media": { "service": "mdi:play" },
-    "save_queue_as_playlist": { "service": "mdi:playlist-plus" },
+    "save_queue_as_playlist": { "service": "mdi:content-save" },
     "search": { "service": "mdi:magnify" },
     "transfer_queue": { "service": "mdi:transfer" }
   }
