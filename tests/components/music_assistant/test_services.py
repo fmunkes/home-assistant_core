@@ -1,5 +1,6 @@
 """Test Music Assistant actions."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call
 
 from music_assistant_client.helpers import LinkedUser
@@ -346,12 +347,27 @@ async def test_get_library_action_with_unknown_username(
     assert err.value.translation_placeholders == {"username": "nobody"}
 
 
+@pytest.mark.parametrize(
+    ("extra_data", "expected_user"),
+    [
+        pytest.param(
+            {MusicAssistantServiceArgument.USERNAME: "john"}, "john", id="given_user"
+        ),
+        pytest.param(
+            {},
+            {"provider": "homeassistant", "user_id": "ha_user_1", "required": False},
+            id="calling_user",
+        ),
+    ],
+)
 async def test_create_playlist_action(
     hass: HomeAssistant,
     music_assistant_client: MagicMock,
+    extra_data: dict[str, Any],
+    expected_user: str | dict[str, Any],
     snapshot: SnapshotAssertion,
 ) -> None:
-    """Test create_playlist creates the playlist as the calling user and returns it."""
+    """Test create_playlist creates the playlist as the user and returns it."""
     music_assistant_client.server_info.schema_version = 101
     entry = await setup_integration_from_fixtures(hass, music_assistant_client)
     music_assistant_client.send_command.return_value = Playlist(
@@ -360,7 +376,7 @@ async def test_create_playlist_action(
         name="Party mix",
         provider_mappings=set(),
     ).to_dict()
-    user = MockUser(is_owner=True).add_to_hass(hass)
+    MockUser(id="ha_user_1", is_owner=True).add_to_hass(hass)
     response = await hass.services.async_call(
         DOMAIN,
         MusicAssistantService.CREATE_PLAYLIST,
@@ -368,10 +384,11 @@ async def test_create_playlist_action(
             CommonServiceArgument.CONFIG_ENTRY_ID: entry.entry_id,
             MusicAssistantServiceArgument.NAME: "Party mix",
             MusicAssistantServiceArgument.PROVIDER: "builtin",
-        },
+        }
+        | extra_data,
         blocking=True,
         return_response=True,
-        context=Context(user_id=user.id),
+        context=Context(user_id="ha_user_1"),
     )
     assert music_assistant_client.send_command.call_args == call(
         "music/playlists/create_playlist",
@@ -380,7 +397,7 @@ async def test_create_playlist_action(
         media_types=None,
         strict_provider_instance=None,
         require_schema=101,
-        user={"provider": "homeassistant", "user_id": user.id, "required": False},
+        user=expected_user,
     )
     assert response == snapshot
 
