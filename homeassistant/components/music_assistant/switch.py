@@ -210,7 +210,9 @@ class MusicAssistantDspSwitch(MusicAssistantEntity, SwitchEntity):
         await self._set_enabled(False)
 
     async def _set_enabled(self, enabled: bool) -> None:
-        assert self._dsp_config  # loaded when the entity was added
+        if TYPE_CHECKING:
+            # an entity whose config fails to load is not added
+            assert self._dsp_config is not None
         await self.mass.config.save_player_dsp_config(
             self.player_id, replace(self._dsp_config, enabled=enabled)
         )

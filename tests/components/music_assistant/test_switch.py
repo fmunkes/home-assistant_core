@@ -239,6 +239,17 @@ async def test_dsp_switch_registry(
     assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
 
 
+async def test_dsp_switch_older_server(
+    hass: HomeAssistant,
+    entity_registry: er.EntityRegistry,
+    music_assistant_client: MagicMock,
+) -> None:
+    """Test a server below schema 101 gets no DSP switch."""
+    music_assistant_client.server_info.schema_version = 100
+    await setup_integration_from_fixtures(hass, music_assistant_client)
+    assert entity_registry.async_get("switch.test_player_1_dsp") is None
+
+
 @pytest.mark.parametrize(
     ("entity_id", "command", "argument"),
     [
